@@ -12,12 +12,12 @@ int RGBImage::GetHeight() const {
 }
 
 RGBColor RGBImage::GetPixel(int x, int y) const {
-	assert(InPixel(x, y, width, height));
+	assert(InPixelXY(x, y, width, height));
 	return rgbs[static_cast<size_t>(width) * y + x];
 }
 
 void RGBImage::SetPixel(int x, int y, RGBColor rgb) {
-	assert(InPixel(x, y, width, height));
+	assert(InPixelXY(x, y, width, height));
 	rgbs[static_cast<size_t>(width) * y + x] = rgb;
 }
 
@@ -64,7 +64,7 @@ RGBImage Renderer::GenerateImage() const {
 }
 
 void Renderer::DrawZBuffer(int x, int y, float z, RGBColor color) {
-	assert(InPixel(x, y, width, height));
+	assert(InPixelXY(x, y, width, height));
 	assert(InScreenZ(z));
 	//坐标系由下至上
 	int index = (height + 1 - y) * width + x;
@@ -72,7 +72,7 @@ void Renderer::DrawZBuffer(int x, int y, float z, RGBColor color) {
 }
 
 void Renderer::DrawWritePixel(int x, int y) {
-	assert(InPixel(x, y, width, height));
+	assert(InPixelXY(x, y, width, height));
 	//绘制直线所在的深度
 	//保证其他像素写入的时候不会覆盖掉直线
 	constexpr float lineDepth = -1.0f;
@@ -464,7 +464,7 @@ bool BackCulling(array<Point3, 3> points) {
 	constexpr Vector3 zAxis{0.0f, 0.0f, 1.0f};
 	Vector3 direction = AB.Cross(BC);
 	float cosX = direction.Dot(zAxis);
-	if (cosX <= 0.0f) {
+	if (cosX >= 0.0f) {
 		return true;
 	}
 	return false;
@@ -620,6 +620,6 @@ bool InScreenZ(float z) {
 	return z >= 0.0f && z <= 1.0f;
 }
 
-bool InPixel(int x, int y, int width, int height) {
+bool InPixelXY(int x, int y, int width, int height) {
 	return x >= 0 && x < width && y >= 0 && y < height;
 }

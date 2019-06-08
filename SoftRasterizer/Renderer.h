@@ -56,9 +56,8 @@ struct TextureTriangle {
 //大于1 取 255
 RGBColor ColorToRGBColor(Color c);
 
-//A B C顺时针可见 逆时针不可见(消除)
-//背面消除 三角形三个点求叉积向量
-//若叉积指向Z轴负方向则消除 返回 true
+//A B C顺时针不消除 逆时针消除
+//消除 返回true
 bool BackCulling(array<Point3, 3> points);
 
 //判断剪裁后是否有直线在框中
@@ -108,7 +107,7 @@ bool InScreenXY(Point2 point);
 bool InScreenZ(float z);
 
 //判断x y 是否在像素空间中
-bool InPixel(int x, int y, int width, int height);
+bool InPixelXY(int x, int y, int width, int height);
 
 //可视空间 x * y * z == [-1,1) * [-1.1) * [0,1]
 //左手坐标系
