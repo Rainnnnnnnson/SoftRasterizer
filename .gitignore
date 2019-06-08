@@ -1,0 +1,9 @@
+﻿################################################################################
+# 此 .gitignore 文件已由 Microsoft(R) Visual Studio 自动创建。
+################################################################################
+
+/SoftRasterizer/x64/Debug/SoftRasterizer.tlog
+/SoftRasterizer/x64/Debug
+/x64/Debug
+/.vs/SoftRasterizer/v16/ipch/AutoPCH
+/.vs/SoftRasterizer/v16/Browse.VC.opendb
