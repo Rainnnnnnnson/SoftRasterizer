@@ -94,3 +94,31 @@ TEST(Line2DClipCase, Test) {
 	Line2D AG{{-2.0f, 1.0f}};
 	EXPECT_TRUE(Line2DClip(AG));
 }
+
+TEST(ComputePlanePointCase, Test) {
+	Matrix4X4 Per = Perspective(1.0f, 2.0f);
+	//近平面
+	Point3 A{-2.0f, 0.0f, 0.0f};
+	Point3 B{2.0f, 0.0f, 2.0f};
+	Point3 C{0.0f, 0.0f, 1.0f};
+	Point4 A4 = Per * A.ToPoint4();
+	Point4 B4 = Per * B.ToPoint4();
+	Point4 C4 = Per * C.ToPoint4();
+	Point3 D1 = C4.ToPoint3();
+	Point3 D2 = ComputePlanePoint(-1.0f, 0.0f, A4, B4).ToPoint3();
+	EXPECT_TRUE(abs(D1.x - D2.x) < 0.000001f);
+	EXPECT_TRUE(abs(D1.y - D2.y) < 0.000001f);
+	EXPECT_TRUE(abs(D1.z - D2.z) < 0.000001f);
+	//远平面
+	Point3 E{0.0f, 1.0f, -1.0f};
+	Point3 F{0.0f, 1.0f, 5.0f};
+	Point3 G{0.0f, 1.0f, 2.0f};
+	Point4 E4 = Per * E.ToPoint4();
+	Point4 F4 = Per * F.ToPoint4();
+	Point4 G4 = Per * G.ToPoint4();
+	Point3 H1 = G4.ToPoint3();
+	Point3 H2 = ComputePlanePoint(1.0f, -1.0f, E4, F4).ToPoint3();
+	EXPECT_TRUE(abs(H1.x - H2.x) < 0.000001f);
+	EXPECT_TRUE(abs(H1.y - H2.y) < 0.000001f);
+	EXPECT_TRUE(abs(H1.z - H2.z) < 0.000001f);
+}

@@ -547,12 +547,15 @@ bool Line2DClip(Line2D& line) {
 Point4 ComputePlanePoint(float C, float D, Point4 point0, Point4 point1) {
 	//计算两点与平面的系数t
 	//这里扩展到四维 方法和三维一样
-	//但是平面 A B 都等于0 只需要计算 z 和 w
+	//N[P0 + t(P1 - P0)] = 0
 	// t = - (N * P0) / (N * (P1 - P0))
+	//但是平面 A B 都等于0 只需要计算 z 和 w
 	array<float, 4> vector4{
 		point1.x - point0.x, point1.y - point0.y, point1.z - point0.z, point1.w - point0.w
 	};
-	float t = -(C * vector4[2] + D * vector4[3]) / (C * vector4[2] + D * vector4[3]);
+	float nP0 = -(C * point0.z + D * point0.w);
+	float nP0_P1 = (C * vector4[2] + D * vector4[3]);
+	float t = nP0 / nP0_P1;
 	return Point4{
 		point0.x + t * vector4[0],
 		point0.y + t * vector4[1],

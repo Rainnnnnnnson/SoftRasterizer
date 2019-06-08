@@ -65,6 +65,8 @@ bool BackCulling(array<Point3, 3> points);
 bool Line2DClip(Line2D& line);
 
 //计算超平面上的点
+//近平面 -z + nw = 0 (n = 0 所以 C = -1 ,D =  0)
+//远平面  z - fw = 0 (f = 1 所以 C =  1 ,D = -1)
 Point4 ComputePlanePoint(float C, float D, Point4 point0, Point4 point1);
 
 //线框模式的近远平面剪裁 分别为 z = 0 和 z = 1;
