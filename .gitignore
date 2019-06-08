@@ -8,3 +8,8 @@
 /.vs/SoftRasterizer/v16/ipch/AutoPCH
 /.vs/SoftRasterizer/v16/Browse.VC.opendb
 /.vs
+/Debug
+/Sample-Test/x64/Debug
+/Sample-Test/Debug
+/SoftRasterizer/Debug
+/packages/Microsoft.googletest.v140.windesktop.msvcstl.static.rt-dyn.1.8.1
