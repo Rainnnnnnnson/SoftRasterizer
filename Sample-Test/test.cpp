@@ -195,3 +195,7 @@ TEST(WireframeTriangleClipCase, TwoPointOutTest) {
 	EXPECT_EQ(triangle1.points[1], nearLeft);
 	EXPECT_EQ(triangle1.points[2], nearRight);
 }
+
+TEST(WireframeTriangleToLine2DCase,Test) {
+
+}

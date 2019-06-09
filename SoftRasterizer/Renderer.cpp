@@ -192,7 +192,42 @@ int WireframeTriangleClip(float C, float D, WireframeTriangle& triangle1, Wirefr
 	}
 }
 
-vector<Line2D> WireframeTriangleNearAndFarClip(WireframeTriangle triangle) {
+
+
+array<Line2D, 3> WireframeTriangleToLine2D(WireframeTriangle triangle) {
+	auto point2s = Stream(triangle.points, [](const Point4& p) {
+		return p.ToPoint3().GetPoint2();
+	});
+	return array<Line2D, 3>{
+		Line2D{point2s[0], point2s[1]},
+		Line2D{point2s[1], point2s[2]},
+		Line2D{point2s[2], point2s[0]},
+	};
+}
+
+vector<Line2D> GetNotRepeatingLine2D(const vector<WireframeTriangle>& wireframeTriangles) {
+	//最多只会剪裁成9条线
+	//远近屏幕剪裁完不再需要Z轴
+	constexpr int maxLineCount = 9;
+	vector<Line2D> lines;
+	lines.reserve(maxLineCount);
+	for (auto& wireframeTriangle : wireframeTriangles) {
+		//线框三角形变成2D线段
+		array<Line2D, 3> line2Ds = WireframeTriangleToLine2D(wireframeTriangle);
+		//不重复线段加入容器中
+		//因为最多9条线段 就不考虑复杂度了 
+		for (auto& line2D : line2Ds) {
+			if (std::find_if(lines.begin(), lines.end(),
+				//找不到相等的线段
+				[=](const Line2D& line) { return line2D == line; }) == lines.end()) {
+				lines.push_back(line2D);
+			}
+		}
+	}
+	return lines;
+}
+
+vector<WireframeTriangle> WireframeTriangleNearAndFarClip(WireframeTriangle triangle) {
 	//最大只可能剪裁出四个三角形
 	constexpr int maxTriangleCount = 4;
 	vector<WireframeTriangle> wireframeTriangles;
@@ -234,28 +269,7 @@ vector<Line2D> WireframeTriangleNearAndFarClip(WireframeTriangle triangle) {
 			wireframeTriangles.push_back(triangle4);
 		}
 	}
-	//最多只会剪裁成9条线
-	//远近屏幕剪裁完不再需要Z轴
-	constexpr int maxLineCount = 9;
-	vector<Line2D> lines;
-	lines.reserve(maxLineCount);
-	for (auto& wireframeTriangle : wireframeTriangles) {
-		//线框三角形变成2D线段
-		array<Line2D, 3> line2Ds{
-			Line2D{wireframeTriangle.points[0].ToPoint3().GetPoint2(), wireframeTriangle.points[1].ToPoint3().GetPoint2()},
-			Line2D{wireframeTriangle.points[1].ToPoint3().GetPoint2(), wireframeTriangle.points[2].ToPoint3().GetPoint2()},
-			Line2D{wireframeTriangle.points[2].ToPoint3().GetPoint2(), wireframeTriangle.points[0].ToPoint3().GetPoint2()}
-		};
-		//不重复线段加入容器中
-		//因为最多9条线段 就不考虑复杂度了 
-		for (auto& line2D : line2Ds) {
-			if (std::find_if(lines.begin(), lines.end(),
-				[=](const Line2D& line) { return line2D == line; }) == lines.end()) {
-				lines.push_back(line2D);
-			}
-		}
-	}
-	return lines;
+	return wireframeTriangles;
 }
 
 int TextureTriangleClip(float C, float D, TextureTriangle& triangle1, TextureTriangle& triangle2) {
@@ -530,6 +544,59 @@ Point4 ComputePlanePoint(float C, float D, Point4 point0, Point4 point1) {
 		point0.z + t * vector4[2],
 		point0.w + t * vector4[3],
 	};
+}
+
+void TriangleNearAndFarClip(const array<Point4, 3> * points, vector<array<Point4, 3>> * ps, 
+							const array<Point2, 3> * textureCoodinates, vector<array<Point2, 3>> * ts, 
+							bool compute) {
+	assert(points != nullptr);
+	assert(ps != nullptr);
+	assert(compute ? 
+		((textureCoodinates != nullptr) && (ts != nullptr)) : 
+		((textureCoodinates == nullptr) && (ts == nullptr))
+	);
+	//最大只可能剪裁出四个三角形
+	constexpr int maxTriangleCount = 4;
+
+	//返回顶点
+	ps->reserve(maxTriangleCount);
+	//triangle1 分裂成 triangle1 triangle2
+	array<Point4, 3> triangle1 = *points;
+	array<Point4, 3> triangle2;
+	int count = TriangleClip(-1.0f, 0.0f, triangle1, triangle2);
+	if (count == 1) {
+		//triangle1 分裂成 triangle1 triangle2
+		int count1 = TriangleClip(1.0f, 1.0f, triangle1, triangle2);
+		if (count1 == 1) {
+			ps->push_back(triangle1);
+		} else if (count1 == 2) {
+			ps->push_back(triangle1);
+			ps->push_back(triangle2);
+		}
+	} else if (count == 2) {
+		//triangle1 分裂成 triangle1 triangle3
+		array<Point4, 3> triangle3;
+		int count21 = TriangleClip(1.0f, 1.0f, triangle1, triangle3);
+		if (count21 == 1) {
+			ps->push_back(triangle1);
+		} else if (count21 == 2) {
+			ps->push_back(triangle1);
+			ps->push_back(triangle3);
+		}
+		//triangle2 分裂成 triangle2 triangle4
+		array<Point4, 3> triangle4;
+		int count22 = TriangleClip(1.0f, 1.0f, triangle2, triangle4);
+		if (count22 == 1) {
+			ps->push_back(triangle2);
+		} else if (count22 == 2) {
+			ps->push_back(triangle2);
+			ps->push_back(triangle4);
+		}
+	}
+	//计算纹理
+	if (compute) {
+		//TODO
+	}
 }
 
 //返回重心系数

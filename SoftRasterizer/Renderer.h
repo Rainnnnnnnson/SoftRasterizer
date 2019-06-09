@@ -69,6 +69,45 @@ bool Line2DClip(Line2D& line);
 //远平面  z - fw = 0 (f = 1 所以 C =  1 ,D = -1)
 Point4 ComputePlanePoint(float C, float D, Point4 point0, Point4 point1);
 
+/*
+	可以选择是否计算纹理 
+	不计算纹理传入nullptr(断言) compute = false
+	线框模式 和 纹理模式 可以同时使用这个方法
+*/
+void TriangleNearAndFarClip(const array<Point4, 3>* points, vector<array<Point4, 3>>* ps,
+							const array<Point2, 3>* textureCoodinates = nullptr, vector<array<Point2, 3>>* ts = nullptr, 
+							bool compute = false);
+
+/*
+	超平面剪裁 Ax + By + Cz + Dw = 0 
+	近平面 C = -1     D =  0
+	远平面 C =  1     D = -1
+	传入 三角形的数据进入 points1
+	返回 0 不需要绘制三角形
+	返回 1 得到 一个三角形 (points1)
+	返回 2 得到 两个三角形 (points1 和 points2)
+*/
+
+int TriangleClip(float C, float D, array<Point4, 3>& points1, array<Point4, 3> & points2);
+
+/*
+	将三角形变成不重复的Line2D
+*/
+vector<Line2D> GetNotRepeatingLine2D(const vector<array<Point4, 3>> & triangles);
+
+//计算重心系数
+array<float, 3> ComputeCenterCoefficient(Point2 point, array<Point2, 3> points);
+
+//重心计算顶点
+Point4 ComputeCenterPoint(array<float, 3> coefficients, array<Point4, 3> points);
+
+//重心计算纹理坐标
+Point2 ComputeCenterTextureCoordinate(array<float, 3> coefficients,
+									  array<Point2, 3> textureCoordinates,
+									  array<float, 3> pointW);
+
+/*
+
 //远近平面 Cz + Dw = 0
 //从 triangle1 传入一个三角形
 //返回 0 不需要绘制
@@ -76,7 +115,6 @@ Point4 ComputePlanePoint(float C, float D, Point4 point0, Point4 point1);
 //返回 2 剪裁后得到两个三角形 triangle1 triangle2
 //未说明三角形不可用
 //根据梯度方向来排序三角形的顶点
-/*
 		pointCount == 1
 			   | Point0
 			   |\   newPoint2
@@ -102,26 +140,25 @@ Point4 ComputePlanePoint(float C, float D, Point4 point0, Point4 point1);
 	两个三角形顶点分别为 
 	triangle1 : Point0 newPoint1 newPoint2
 	triangle2 : Point0 newPoint2 point1;
-*/
 int WireframeTriangleClip(float C, float D, WireframeTriangle& triangle1, WireframeTriangle& triangle2);
 
 //线框模式的近远平面剪裁 分别为 z = 0 和 z = 1;
-//返回所有的直线
-vector<Line2D> WireframeTriangleNearAndFarClip(WireframeTriangle triangle);
+//返回剪裁后的三角形
+vector<WireframeTriangle> WireframeTriangleNearAndFarClip(WireframeTriangle triangle);
+
+//先计算出2D点
+//根据三角形顺序返回2D直线
+//point0 point1
+//point1 point2
+//point2 point0
+array<Line2D, 3> WireframeTriangleToLine2D(WireframeTriangle triangle);
+
+vector<Line2D> GetNotRepeatingLine2D(const vector<WireframeTriangle>& wireframeTriangles);
 
 //纹理三角形远近平面剪裁
 //所得三角形纹理坐标 需要矫正
 vector<TextureTriangle> TextureTriangleNearAndFarClip(TextureTriangle triangle);
-
-//计算重心系数
-array<float, 3> ComputeCenterCoefficient(Point2 point, array<Point2, 3> points);
-
-//重心计算顶点
-Point4 ComputeCenterPoint(array<float, 3> coefficients, array<Point4, 3> points);
-
-//重心计算纹理坐标
-Point2 ComputeCenterTextureCoordinate(array<float, 3> coefficients, array<Point2, 3> textureCoordinates,
-									  array<float, 3> pointW);
+*/
 
 //获取一个像素的宽度
 float GetPixelDelta(int pixelCount);
@@ -154,6 +191,9 @@ public:
 	Renderer(int width, int height);
 	void Clear();
 	RGBImage GenerateImage() const;
+
+	//画白色线段 覆盖在图像最前面
+	void DrawLine2D(Line2D line);
 
 	//画白色线框 
 	//覆盖在所有图像的最前面
@@ -192,10 +232,8 @@ public:
 							   function<Color(Point4, Point2, const Texture&)> pixelShader);
 private:
 	template<typename Texture>
-	void HandlePixel(TextureTriangle triangle, const Texture& texture,
+	void HandlePixel(array<Point4, 3> points, array<Point2, 3> coordinates, const Texture& texture,
 					 function<Color(Point4, Point2, const Texture&)> pixelShader);
-	//画白色线段 覆盖在图像最前面
-	void DrawLine2D(Line2D line);
 	//这个用于绘制纹理三角形来画像素的
 	void DrawZBuffer(int x, int y, float z, RGBColor color);
 	//这个用于绘制白色直线覆盖在最前面的点
@@ -234,14 +272,14 @@ inline void Renderer::DrawTriangleByWireframe(const vector<Point3>& points,
 								textureCoordinates[data.textureCoordinateIndex[i]], textures[data.textureIndex]);
 		});
 		//线框模式下不进行背面消除 显示全部线段
-		//远近平面剪裁后转化为2D线段
-		auto clippedLines = WireframeTriangleNearAndFarClip(WireframeTriangle{p});
+		//得到剪裁后的三角形
+		vector<array<Point4, 3>> triangles;
+		TriangleNearAndFarClip(&p, &triangles);
+		//获取不重复线段
+		auto clippedLines = GetNotRepeatingLine2D(triangles);
+		//绘制线段
 		for (auto& clippedLine : clippedLines) {
-			//剪裁
-			if (Line2DClip(clippedLine)) {
-				//绘制2D线段
-				DrawLine2D(clippedLine);
-			}
+			DrawLine2D(clippedLine);
 		}
 	}
 }
@@ -279,28 +317,31 @@ inline void Renderer::DrawTriangleByTexture(const vector<Point3>& points,
 			continue;
 		}
 		//远近平面剪裁 
-		//纹理坐标进行插值矫正 
-		auto clippedTriangles = TextureTriangleNearAndFarClip(TextureTriangle{point4s, textureCoordinate});
+		//纹理坐标进行插值矫正
+		vector<array<Point4, 3>> trianglePoints;
+		vector<array<Point2, 3>> triangleTextureCoodinates;
+		TriangleNearAndFarClip(&point4s, &trianglePoints,
+							   &textureCoordinate, &triangleTextureCoodinates, true);
 		//计算每个像素的位置 
 		//执行像素着色器
 		//输出像素颜色
-		for (auto& clippedTriangle : clippedTriangles) {
-			HandlePixel(clippedTriangle, textures[data.textureIndex], pixelShader);
+		for (int i = 0; i < trianglePoints.size(); i++) {
+			HandlePixel(trianglePoints[i], triangleTextureCoodinates[i], textures[data.textureIndex], pixelShader);
 		}
 	}
 
 }
 
 template<typename Texture>
-inline void Renderer::HandlePixel(TextureTriangle triangle, const Texture& texture,
+inline void Renderer::HandlePixel(array<Point4, 3> points, array<Point2, 3> coordinate, const Texture& texture,
 								  function<Color(Point4, Point2, const Texture&)> pixelShader) {
 	//获取三角形中顶点最大最小的x y值
 	//用于计算需要绘制的边框
-	array<float, 3> xValue = Stream(triangle.points, [](const Point4& p) {
+	array<float, 3> xValue = Stream(points, [](const Point4& p) {
 		return p.x;
 	});
 	std::sort(xValue.begin(), xValue.end(), std::less<float>());
-	array<float, 3> yValue = Stream(triangle.points, [](const Point4& p) {
+	array<float, 3> yValue = Stream(points, [](const Point4& p) {
 		return p.y;
 	});
 	std::sort(yValue.begin(), yValue.end(), std::less<float>());
@@ -310,7 +351,7 @@ inline void Renderer::HandlePixel(TextureTriangle triangle, const Texture& textu
 	int yMax = std::min(ScreenToPixel(yValue[2], height), height - 1);
 	int yMin = std::max(ScreenToPixel(yValue[0], height), 0);
 	//三个点映射至齐次坐标
-	array<Point3, 3> points = Stream(triangle.points, [](const Point4& p) {
+	array<Point3, 3> point3s = Stream(points, [](const Point4& p) {
 		return p.ToPoint3();
 	});
 	//循环限定矩形 [xMin,xMax] * [yMin,yMax]
@@ -321,7 +362,7 @@ inline void Renderer::HandlePixel(TextureTriangle triangle, const Texture& textu
 				PixelToScreen(yIndex, width)
 			};
 			//得到屏幕坐标
-			auto point2s = Stream(points, [](const Point3& p) {
+			auto point2s = Stream(point3s, [](const Point3& p) {
 				return p.GetPoint2();
 			});
 			//计算重心系数
@@ -333,15 +374,15 @@ inline void Renderer::HandlePixel(TextureTriangle triangle, const Texture& textu
 			if (inTriangle) {
 				//使用重心坐标计算出像素位置对应的齐次坐标点
 				Point4 pixelPoint = ComputeCenterPoint(
-					coefficient, triangle.points
+					coefficient, points
 				);
 				//所有点的w坐标
-				auto pointsW = Stream(triangle.points, [](const Point4& p) {
+				auto pointsW = Stream(points, [](const Point4& p) {
 					return p.w;
 				});
 				//矫正后的纹理坐标
 				Point2 textureCoordinate = ComputeCenterTextureCoordinate(
-					coefficient, triangle.textureCoordinate, pointsW
+					coefficient, coordinate, pointsW
 				);
 				//执行像素着色器
 				Color color = pixelShader(pixelPoint, textureCoordinate, texture);
