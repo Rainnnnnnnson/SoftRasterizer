@@ -69,6 +69,42 @@ bool Line2DClip(Line2D& line);
 //远平面  z - fw = 0 (f = 1 所以 C =  1 ,D = -1)
 Point4 ComputePlanePoint(float C, float D, Point4 point0, Point4 point1);
 
+//远近平面 Cz + Dw = 0
+//从 triangle1 传入一个三角形
+//返回 0 不需要绘制
+//返回 1 剪裁后得到一个三角形 或者 不需要剪裁得到一个三角形 triangle1
+//返回 2 剪裁后得到两个三角形 triangle1 triangle2
+//未说明三角形不可用
+//根据梯度方向来排序三角形的顶点
+/*
+		pointCount == 1
+			   | Point0
+			   |\   newPoint2
+	___________|_\↙______________
+	newPoint1↗|  \
+			   |  /Point1
+			   | /
+			   |/
+			  Point2
+	=========================================================
+		pointCount == 2
+			   | Point0
+			   |\
+			   | \
+			   |  \ Point1
+	___________|__/_______________  
+			 ↗| /↖
+	newPoint1  |/   newPoint2
+			   Point2
+	=========================================================
+	Point0 Point1 Point2 为排序后的点
+	newPoint1 newPoint2 为剪裁后得到的点
+	两个三角形顶点分别为 
+	triangle1 : Point0 newPoint1 newPoint2
+	triangle2 : Point0 newPoint2 point1;
+*/
+int WireframeTriangleClip(float C, float D, WireframeTriangle& triangle1, WireframeTriangle& triangle2);
+
 //线框模式的近远平面剪裁 分别为 z = 0 和 z = 1;
 //返回所有的直线
 vector<Line2D> WireframeTriangleNearAndFarClip(WireframeTriangle triangle);

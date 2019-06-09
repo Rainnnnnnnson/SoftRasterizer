@@ -148,36 +148,26 @@ void Renderer::DrawLine2D(Line2D line) {
 
 //======================================================
 
-//远近平面 Cz + Dw = 0
-//从 triangle1 传入一个三角形
-//返回 0 不需要绘制
-//返回 1 剪裁后得到一个三角形 或者 不需要剪裁得到一个三角形 triangle1
-//返回 2 剪裁后得到两个三角形 triangle1 triangle2
-//未说明三角形不可用
 int WireframeTriangleClip(float C, float D, WireframeTriangle& triangle1, WireframeTriangle& triangle2) {
 	//判断点在平面的哪一侧
-	array<std::pair<Point4, bool>, 3> pointBools{
-		std::pair<Point4, bool>{triangle1.points[0], false},
-		std::pair<Point4, bool>{triangle1.points[0], false},
-		std::pair<Point4, bool>{triangle1.points[0], false}
-	};
-	//在平面梯度负方向(CVV方向)的点 (包含平面上的点) 为true
+	auto pointBools = Stream(triangle1.points, [](const Point4& p) {
+		return std::pair<Point4, float>{p, 0.0f};
+	});
+	//带入超平面得到梯度方向的距离
 	for (auto& pointBool : pointBools) {
 		float g = pointBool.first.z * C + pointBool.first.w * D;
-		if (g <= 0.0f) {
-			return true;
-		}
+		pointBool.second = g;
 	}
-	//在平面梯度负方向(CVV方向)的点 排在前面
+	//根据距离排序
 	std::sort(pointBools.begin(), pointBools.end(),
-	    [](const std::pair<Point4, bool>& pointBool1, const std::pair<Point4, bool>& pointBool2) {
-		    return (pointBool1.second == true) && (pointBool2.second == false);
+	    [](const std::pair<Point4, float>& pointBool1, const std::pair<Point4, float>& pointBool2) {
+		    return pointBool1.second < pointBool2.second;
 	    }
 	);
-	//在平面梯度负方向(CVV方向)的点的个数
+	//在平面梯度负方向的点的个数
 	int pointCount = static_cast<int>(std::count_if(pointBools.begin(), pointBools.end(),
-	    [](const std::pair<Point4, bool>& pointBool) {
-		    return pointBool.second == true;
+	    [](const std::pair<Point4, float>& pointBool) {
+		    return pointBool.second <= 0.0f;
 	    }
 	));
 	//根据点的个数来得到剪裁后的三角形
@@ -187,27 +177,6 @@ int WireframeTriangleClip(float C, float D, WireframeTriangle& triangle1, Wirefr
 	if (pointCount == 3) {
 		return 1;
 	}
-	/*
-		pointCount == 1
-			   * Point0
-			   |\   newPoint2
-	___________|_\↙______________
-	newPoint1↗|  \
-			   |  /Point1
-			   | /
-			   |/
-			  Point2
-	=========================================================
-		pointCount == 2
-			   * Point0
-			   |\
-			   | \
-			   |  \ Point1
-	___________|__/_______________
-			 ↗| /↖
-	newPoint1  |/   newPoint2
-			   Point2
-	*/
 	//需要剪裁
 	if (pointCount == 1) {
 		Point4 newPoint1 = ComputePlanePoint(C, D, pointBools[0].first, pointBools[2].first);
@@ -292,16 +261,15 @@ vector<Line2D> WireframeTriangleNearAndFarClip(WireframeTriangle triangle) {
 int TextureTriangleClip(float C, float D, TextureTriangle& triangle1, TextureTriangle& triangle2) {
 	//和线框三角形的逻辑一样
 	//判断点在平面的哪一侧
-	array<std::tuple<Point4, Point2, bool>, 3> triangleBools{
-		std::tuple<Point4, Point2, bool>{triangle1.points[0], triangle1.textureCoordinate[0], false},
-		std::tuple<Point4, Point2, bool>{triangle1.points[1], triangle1.textureCoordinate[1], false},
-		std::tuple<Point4, Point2, bool>{triangle1.points[2], triangle1.textureCoordinate[2], false},
-	};
+	auto triangleBools = Stream(array<int, 3>{0, 1, 2}, [&](int i) {
+		return std::tuple<Point4, Point2, bool>{triangle1.points[i], triangle1.textureCoordinate[i], false};
+	});
 	//在平面梯度负方向(CVV方向)的点 (包含平面上的点) 为true
 	for (auto& triangleBool : triangleBools) {
 		float g = std::get<0>(triangleBool).z * C + std::get<0>(triangleBool).w * D;
 		if (g <= 0.0f) {
-			return true;
+			bool& b = std::get<2>(triangleBool);
+			b = true;
 		}
 	}
 	//在平面梯度负方向(CVV方向)的点 排在前面

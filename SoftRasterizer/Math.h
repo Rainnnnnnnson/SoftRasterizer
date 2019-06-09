@@ -31,6 +31,7 @@ struct Point3 {
 struct Point4 {
 	float x, y, z, w;
 	//(x/w, y/w, z/w)
+	bool operator==(const Point4& p) const;
 	Point3 ToPoint3() const;
 };
 

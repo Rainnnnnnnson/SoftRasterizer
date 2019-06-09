@@ -41,6 +41,10 @@ Point4 Point3::ToPoint4() const {
 	return Point4{x, y, z, 1};
 }
 
+bool Point4::operator==(const Point4& p) const {
+	return x == p.x && y == p.y && z == p.z & w == p.w;
+}
+
 Point3 Point4::ToPoint3() const {
 	return Point3{x / w, y / w, z / w};
 }

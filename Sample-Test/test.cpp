@@ -122,3 +122,76 @@ TEST(ComputePlanePointCase, Test) {
 	EXPECT_TRUE(abs(H1.y - H2.y) < 0.000001f);
 	EXPECT_TRUE(abs(H1.z - H2.z) < 0.000001f);
 }
+
+TEST(WireframeTriangleClipCase, NotClipTest) {
+	Matrix4X4 Per = Perspective(1.0f, 2.0f);
+	auto point3s = array<Point3, 3>{
+		Point3{0.0f, 0.0f, 2.0f},
+		Point3{-1.0f, 0.0f, 1.0f},
+		Point3{1.0f, 0.0f, 1.0f}
+	};
+	auto point4s = Stream(point3s, [&](const Point3& p) {
+		return Per * p.ToPoint4();
+	});
+	WireframeTriangle triangle1;
+	WireframeTriangle triangle2;
+	int count;
+	//近平面
+	triangle1 = WireframeTriangle{point4s};
+	count = WireframeTriangleClip(-1.0f, 0.0f, triangle1, triangle2);
+	EXPECT_EQ(triangle1.points[0], point4s[0]);
+	EXPECT_EQ(triangle1.points[1], point4s[1]);
+	EXPECT_EQ(triangle1.points[2], point4s[2]);
+	EXPECT_EQ(count, 1);
+	//远平面
+	triangle1 = WireframeTriangle{point4s};
+	count = WireframeTriangleClip(1.0f, -1.0f, triangle1, triangle2);
+	EXPECT_EQ(triangle1.points[0], point4s[0]);
+	EXPECT_EQ(triangle1.points[1], point4s[1]);
+	EXPECT_EQ(triangle1.points[2], point4s[2]);
+	EXPECT_EQ(count, 1);
+}
+
+TEST(WireframeTriangleClipCase, OnePointOutTest) {
+	Matrix4X4 Per = Perspective(1.0f, 2.0f);
+	auto nearPoint3s = array<Point3, 3>{
+		Point3{0.0f, 0.0f, 4.0f},
+		Point3{1.0f, 0.0f, 2.0f},
+		Point3{0.0f, 0.0f, 0.0f}
+	};
+	auto point4s = Stream(nearPoint3s, [&](const Point3& p) {
+		return Per * p.ToPoint4();
+	});
+	auto nearLeft = Per * Point3{0.0f, 0.0f, 1.0f}.ToPoint4();
+	auto nearRight = Per * Point3{0.5f, 0.0f, 1.0f}.ToPoint4();
+	WireframeTriangle triangle1 = WireframeTriangle{point4s};
+	WireframeTriangle triangle2;
+	int count = WireframeTriangleClip(-1.0f, 0.0f, triangle1, triangle2);
+	EXPECT_EQ(count, 2);
+	EXPECT_EQ(triangle1.points[0], point4s[0]);
+	EXPECT_EQ(triangle1.points[1], nearLeft);
+	EXPECT_EQ(triangle1.points[2], nearRight);
+	EXPECT_EQ(triangle2.points[0], point4s[0]);
+	EXPECT_EQ(triangle2.points[1], nearRight);
+	EXPECT_EQ(triangle2.points[2], point4s[1]);
+}
+TEST(WireframeTriangleClipCase, TwoPointOutTest) {
+	Matrix4X4 Per = Perspective(1.0f, 2.0f);
+	array<Point3, 3> nearPoint3s{
+		Point3{0.0f, 0.0f, 2.0f},
+		Point3{1.0f, 0.0f, 0.0f},
+		Point3{0.0f, 0.0f, -2.0f},
+	};
+	auto point4s = Stream(nearPoint3s, [&](const Point3& p) {
+		return Per * p.ToPoint4();
+	});
+	auto nearLeft = Per * Point3{0.0f, 0.0f, 1.0f}.ToPoint4();
+	auto nearRight = Per * Point3{0.5f, 0.0f, 1.0f}.ToPoint4();
+	WireframeTriangle triangle1 = WireframeTriangle{point4s};
+	WireframeTriangle triangle2;
+	int count = WireframeTriangleClip(-1.0f, 0.0f, triangle1, triangle2);
+	EXPECT_EQ(count, 1);
+	EXPECT_EQ(triangle1.points[0], point4s[0]);
+	EXPECT_EQ(triangle1.points[1], nearLeft);
+	EXPECT_EQ(triangle1.points[2], nearRight);
+}
