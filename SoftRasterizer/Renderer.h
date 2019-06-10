@@ -230,7 +230,9 @@ inline void Renderer::DrawTriangleByWireframe(const vector<Point3>& points,
 		auto line2Ds = GetNotRepeatingLine2Ds(triangles);
 		//ªÊ÷∆œﬂ∂Œ
 		for (auto& line2D : line2Ds) {
-			DrawLine2D(line2D);
+			if (Line2DClip) {
+				DrawLine2D(line2D);
+			}
 		}
 	}
 }
