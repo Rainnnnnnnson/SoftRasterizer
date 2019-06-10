@@ -26,17 +26,6 @@ void RGBImage::SetPixel(int x, int y, RGBColor rgb) {
 
 //================================================================================================================
 
-bool Line2D::operator==(const Line2D& l) const {
-	//线段两个点不一定是对应的
-	if (((pointA == l.pointA) && (pointB == l.pointB)) ||
-		((pointA == l.pointB) && (pointB == l.pointA))) {
-		return true;
-	}
-	return false;
-}
-
-//================================================================================================================
-
 //在清空状态深度储存为2.0f
 //需要写入其他像素时候可以直接写入
 constexpr float clearDepth = 2.0f;
@@ -87,16 +76,17 @@ void Renderer::DrawWritePixel(int x, int y) {
 	zBuffer[index] = {lineDepth, write};
 }
 
-void DrawLineByMiddlePoint(Line2D line, int width, int height, function<void(int, int)> func) {
-	if (line.pointB.x < line.pointA.x) {
-		std::swap(line.pointB, line.pointA);
+void DrawLineByMiddlePoint(Array<Point2, 2> points, int width, int height, function<void(int, int)> func) {
+	if (points[1].x < points[0].x) {
+		std::swap(points[1], points[0]);
 	}
 	//线框模式不需要太精细
 	//直接取像素中心来偷懒
-	int xMin = ScreenToPixel(line.pointA.x, width);
-	int xMax = ScreenToPixel(line.pointB.x, width);
-	Point2 pointA{PixelToScreen(xMin, width), PixelToScreen(ScreenToPixel(line.pointA.y, height), height)};
-	Point2 pointB{PixelToScreen(xMax, height), PixelToScreen(ScreenToPixel(line.pointB.y, height), height)};
+	int xMin = ScreenToPixel(points[0].x, width);
+	int xMax = ScreenToPixel(points[1].x, width);
+	//得到新的点
+	Point2 pointA{PixelToScreen(xMin, width), PixelToScreen(ScreenToPixel(points[0].y, height), height)};
+	Point2 pointB{PixelToScreen(xMax, width), PixelToScreen(ScreenToPixel(points[1].y, height), height)};
 	//新K值
 	float newk = (pointB.y - pointA.y) / (pointB.x - pointA.x);
 	//增量区分[-1,0)和 [0,1) 这样就不用写多几个分支
@@ -124,20 +114,20 @@ void DrawLineByMiddlePoint(Line2D line, int width, int height, function<void(int
 	}
 }
 
-void Renderer::DrawLine2D(Line2D line) {
-	assert(InScreenXY(line.pointA));
-	assert(InScreenXY(line.pointB));
+void Renderer::DrawScreenLine(Array<Point2, 2> points) {
+	assert(InScreenXY(points[0]));
+	assert(InScreenXY(points[1]));
 	//斜率
-	float k = (line.pointB.y - line.pointA.y) / (line.pointB.x - line.pointA.x);
+	float k = (points[1].y - points[0].y) / (points[1].x - points[0].x);
 	if (k >= -1.0f && k < 1.0f) {
-		DrawLineByMiddlePoint(line, width, height, [&](int x, int y) {
+		DrawLineByMiddlePoint(points, width, height, [&](int x, int y) {
 			DrawWritePixel(x, y);
 		});
 	} else if (k < -1.0f || k >= 1.0f) {
 		//用x = ky + b当作直线
 		//关于y = x 对称
 		//反转 x 和 y的属性
-		Line2D reverseLine = {line.pointB, line.pointA};
+		Array<Point2, 2> reverseLine = {points[1], points[0]};
 		int reverseWidth = height;
 		int reverseHeight = width;
 		DrawLineByMiddlePoint(reverseLine, reverseWidth, reverseHeight, [&](int x, int y) {
@@ -242,17 +232,17 @@ bool BackCulling(Array<Point3, 3> points) {
 	return false;
 }
 
-bool Line2DClip(Line2D& line) {
+bool ScreenLineClip(Array<Point2, 2>& points) {
 	//边界
 	constexpr float xMin = -1.0f;
 	constexpr float xMax = 1.0f;
 	constexpr float yMin = -1.0f;
 	constexpr float yMax = 1.0F;
 	//使用liang-barsky算法
-	float x0 = line.pointA.x;
-	float y0 = line.pointA.y;
-	float x1 = line.pointB.x;
-	float y1 = line.pointB.y;
+	float x0 = points[0].x;
+	float y0 = points[0].y;
+	float x1 = points[1].x;
+	float y1 = points[1].y;
 
 	float deltaX = x1 - x0;
 	float deltaY = y1 - y0;
@@ -315,9 +305,18 @@ bool Line2DClip(Line2D& line) {
 	float newX1 = x0 + t1 * deltaX;
 	float newY1 = y0 + t1 * deltaY;
 
-	line.pointA = Point2{newX0, newY0};
-	line.pointB = Point2{newX1, newY1};
+	points[0] = Point2{newX0, newY0};
+	points[1] = Point2{newX1, newY1};
 	return true;
+}
+
+bool ScreenLineEqual(Array<Point2, 2> pointsA, Array<Point2, 2> pointsB) {
+	//不对应
+	if (((pointsA[0] == pointsB[0]) && (pointsA[1] == pointsB[1])) ||
+		((pointsA[0] == pointsB[1]) && (pointsA[1] == pointsB[0]))) {
+		return true;
+	}
+	return false;
 }
 
 //返回与两点直线在平面上的交点
@@ -375,9 +374,9 @@ MaxCapacityArray<Array<Point4, 3>, 2> TriangleClip(float C, float D, const Array
 	if (pointCount == 1) {
 		/*
 					   *Point0
-					   |\   newPoint[1]
+					   |\   newPoint2
 		  _____________|_\↙______________
-		  newPoint[0]↗|  \
+		    newPoint1↗|  \
 					   |  /Point1
 					   | /
 					   |/
@@ -394,7 +393,7 @@ MaxCapacityArray<Array<Point4, 3>, 2> TriangleClip(float C, float D, const Array
 					   |  \ Point1
 			___________|__/_______________
 					 ↗| /↖
-			newPoint[0]|/   newPoint[1]
+			newPoint1  |/   newPoint2
 	    		       *Point2
         */
 		Point4 newPoint1 = ComputePlanePoint(C, D, pointBools[0].first, pointBools[2].first);
@@ -410,28 +409,31 @@ MaxCapacityArray<Array<Point4, 3>, 2> TriangleClip(float C, float D, const Array
 	return triangleArray;
 }
 
-MaxCapacityArray<Line2D, 9> GetNotRepeatingLine2Ds(const MaxCapacityArray<Array<Point4, 3>, 4> & triangles) {
-	MaxCapacityArray<Line2D, 9> line2DArray;
+MaxCapacityArray<Array<Point2, 2>, 9> GetNotRepeatingScreenLines(const MaxCapacityArray<Array<Point4, 3>, 4> & triangles) {
+	MaxCapacityArray<Array<Point2, 2>, 9> returnLines;
 	for (auto& triangle : triangles) {
 		auto point2s = triangle.Stream([](const Point4& p) {
 			return p.ToPoint3().GetPoint2();
 		});
 		//线框三角形变成2D线段
-		array<Line2D, 3> line2Ds{
-			Line2D{point2s[0], point2s[1]},
-			Line2D{point2s[1], point2s[2]},
-			Line2D{point2s[2], point2s[0]},
+		array<Array<Point2, 2>, 3> lines{
+			Array<Point2, 2>{point2s[0], point2s[1]},
+			Array<Point2, 2>{point2s[1], point2s[2]},
+			Array<Point2, 2>{point2s[2], point2s[0]},
 		};
 		//不重复线段加入容器中
-		//因为最多9条线段 就不考虑复杂度了 
-		for (auto& line2D : line2Ds) {
-			if (std::find_if(line2DArray.begin(), line2DArray.end(),
-				[&](auto& line) { return line2D == line; }) == line2DArray.end()) {
-				line2DArray.Push(line2D);
+		for (auto& line : lines) {
+			//找不到相同的直线
+			bool notRepecting = std::find_if(returnLines.begin(), returnLines.end(), [&](Array<Point2, 2> returnLine) {
+				//TODO
+				return false;
+			}) == returnLines.end();
+			if (notRepecting) {
+				returnLines.Push(line);
 			}
 		}
 	}
-	return line2DArray;
+	return returnLines;
 }
 
 Array<float, 3> ComputeCenterCoefficient(Point2 point, Array<Point2, 3> points) {

@@ -65,42 +65,53 @@ TEST(BackCulling, Test) {
 	}));
 }
 
-TEST(Line2D, EqualsTest) {
-	Line2D a{{0.0f, 1.0f}, {1.0f, 0.0f}};
-	Line2D b{{1.0f, 0.0f}, {0.0f, 1.0f}};
-	Line2D c = a;
-	Line2D d{{0.0f, 0.0f}, {0.0f, 0.0f}};
-	EXPECT_TRUE(a == b);
-	EXPECT_TRUE(a == c);
+TEST(ScreenLine, EqualsTest) {
+	Array<Point2, 2> a{{0.0f, 1.0f}, {1.0f, 0.0f}};
+	Array<Point2, 2> b{{1.0f, 0.0f}, {0.0f, 1.0f}};
+	Array<Point2, 2> c = a;
+	Array<Point2, 2> d{{0.0f, 0.0f}, {0.0f, 0.0f}};
+	EXPECT_TRUE(ScreenLineEqual(a, b));
+	EXPECT_TRUE(ScreenLineEqual(a, c));
 
-	EXPECT_FALSE(a == d);
-	EXPECT_FALSE(b == d);
-
+	EXPECT_FALSE(ScreenLineEqual(a, d));
+	EXPECT_FALSE(ScreenLineEqual(b, d));
 }
 
 TEST(Line2DClip, Test) {
-	// A B C
-	// D E F
-	// G H I
-	Line2D BH{{0.0f, 2.0f}, {0.0f, -2.0F}};
-	EXPECT_TRUE(Line2DClip(BH));
-	EXPECT_TRUE(InScreenXY(BH.pointA));
-	EXPECT_TRUE(InScreenXY(BH.pointB));
-	Line2D DF{{-2.0f, 0.0f}, {2.0f, 0.0F}};
-	EXPECT_TRUE(Line2DClip(DF));
-	EXPECT_TRUE(InScreenXY(DF.pointA));
-	EXPECT_TRUE(InScreenXY(DF.pointB));
-	Line2D CG{{2.0f, 2.0f}, {-2.0f, -2.0F}};
-	EXPECT_TRUE(Line2DClip(CG));
-	EXPECT_TRUE(InScreenXY(CG.pointA));
-	EXPECT_TRUE(InScreenXY(CG.pointB));
-	Line2D AG{{-2.0f, 1.0f}};
-	EXPECT_TRUE(Line2DClip(AG));
+	/*
+		A B C
+		D E F
+		G H I
+		E是需要绘制的部分
+	*/
+
+	Array<Point2, 2> BH{{0.0f, 2.0f}, {0.0f, -2.0F}};
+	EXPECT_TRUE(ScreenLineClip(BH));
+	EXPECT_TRUE(InScreenXY(BH[0]));
+	EXPECT_TRUE(InScreenXY(BH[1]));
+	Array<Point2, 2> DF{{-2.0f, 0.0f}, {2.0f, 0.0F}};
+	EXPECT_TRUE(ScreenLineClip(DF));
+	EXPECT_TRUE(InScreenXY(DF[0]));
+	EXPECT_TRUE(InScreenXY(DF[1]));
+	Array<Point2, 2> CGcrossE{{2.0f, 2.0f}, {-2.0f, -2.0F}};
+	EXPECT_TRUE(ScreenLineClip(CGcrossE));
+	EXPECT_TRUE(InScreenXY(CGcrossE[0]));
+	EXPECT_TRUE(InScreenXY(CGcrossE[1]));
+
+	Array<Point2, 2> AG{{-2.0f, 1.0f}, {-2.0f, -1.0f}};
+	EXPECT_FALSE(ScreenLineClip(AG));
+
+	Array<Point2, 2> BDcrossA{{0.0f, 3.0f}, {-3.0f, 0.0f}};
+	EXPECT_FALSE(ScreenLineClip(BDcrossA));
+
+	Array<Point2, 2> BDcrossE{{0.0f, 1.5f}, {-1.5f, 0.0f}};
+	EXPECT_TRUE(ScreenLineClip(BDcrossE));
+	EXPECT_TRUE(InScreenXY(BDcrossE[0]));
+	EXPECT_TRUE(InScreenXY(BDcrossE[1]));
 }
 
-TEST(ComputePlanePoint, Test) {
+TEST(ComputePlanePoint, NearPlane) {
 	Matrix4X4 Per = Perspective(1.0f, 2.0f);
-	//近平面
 	Point3 A{-2.0f, 0.0f, 0.0f};
 	Point3 B{2.0f, 0.0f, 2.0f};
 	Point3 C{0.0f, 0.0f, 1.0f};
@@ -109,22 +120,26 @@ TEST(ComputePlanePoint, Test) {
 	Point4 C4 = Per * C.ToPoint4();
 	Point3 D1 = C4.ToPoint3();
 	Point3 D2 = ComputePlanePoint(-1.0f, 0.0f, A4, B4).ToPoint3();
-	EXPECT_TRUE(abs(D1.x - D2.x) < 0.000001f);
-	EXPECT_TRUE(abs(D1.y - D2.y) < 0.000001f);
-	EXPECT_TRUE(abs(D1.z - D2.z) < 0.000001f);
-	//远平面
-	Point3 E{0.0f, 1.0f, -1.0f};
-	Point3 F{0.0f, 1.0f, 5.0f};
-	Point3 G{0.0f, 1.0f, 2.0f};
-	Point4 E4 = Per * E.ToPoint4();
-	Point4 F4 = Per * F.ToPoint4();
-	Point4 G4 = Per * G.ToPoint4();
-	Point3 H1 = G4.ToPoint3();
-	Point3 H2 = ComputePlanePoint(1.0f, -1.0f, E4, F4).ToPoint3();
-	EXPECT_TRUE(abs(H1.x - H2.x) < 0.000001f);
-	EXPECT_TRUE(abs(H1.y - H2.y) < 0.000001f);
-	EXPECT_TRUE(abs(H1.z - H2.z) < 0.000001f);
+	EXPECT_EQ(D1.x, D2.x);
+	EXPECT_EQ(D1.y, D2.y);
+	EXPECT_EQ(D1.z, D2.z);
 }
+
+TEST(ComputePlanePoint, FarPlane) {
+	Matrix4X4 Per = Perspective(1.0f, 2.0f);
+	Point3 A{0.0f, 1.0f, -1.0f};
+	Point3 B{0.0f, 1.0f, 5.0f};
+	Point3 C{0.0f, 1.0f, 2.0f};
+	Point4 A4 = Per * A.ToPoint4();
+	Point4 B4 = Per * B.ToPoint4();
+	Point4 C4 = Per * C.ToPoint4();
+	Point3 D1 = C4.ToPoint3();
+	Point3 D2 = ComputePlanePoint(1.0f, -1.0f, A4, B4).ToPoint3();
+	EXPECT_EQ(D1.x, D2.x);
+	EXPECT_EQ(D1.y, D2.y);
+	EXPECT_EQ(D1.z, D2.z);
+}
+
 
 TEST(TriangleClip, NotClipTest) {
 	Matrix4X4 Per = Perspective(1.0f, 2.0f);
@@ -136,88 +151,128 @@ TEST(TriangleClip, NotClipTest) {
 	auto point4s = point3s.Stream([&](const Point3& p) {
 		return Per * p.ToPoint4();
 	});
-	auto nearClipTriangles = TriangleClip(-1.0f, 0.0f, point4s);
-	EXPECT_EQ(nearClipTriangles.Size(), 1);
-	EXPECT_EQ((*nearClipTriangles.begin())[0], point4s[0]);
-	EXPECT_EQ((*nearClipTriangles.begin())[1], point4s[1]);
-	EXPECT_EQ((*nearClipTriangles.begin())[2], point4s[2]);
+	auto clipTriangles = TriangleClip(-1.0f, 0.0f, point4s);
+	EXPECT_EQ(clipTriangles.Size(), 1);
+	auto it = clipTriangles.begin();
+	EXPECT_EQ((*it)[0], point4s[0]);
+	EXPECT_EQ((*it)[1], point4s[1]);
+	EXPECT_EQ((*it)[2], point4s[2]);
 }
 
-/*
-TEST(WireframeTriangleClipCase, NotClipTest) {
+TEST(TriangleClip, OnePointOut) {
 	Matrix4X4 Per = Perspective(1.0f, 2.0f);
-	auto point3s = array<Point3, 3>{
-		Point3{0.0f, 0.0f, 2.0f},
-		Point3{-1.0f, 0.0f, 1.0f},
-		Point3{1.0f, 0.0f, 1.0f}
-	};
-	auto point4s = Stream(point3s, [&](const Point3& p) {
-		return Per * p.ToPoint4();
-	});
-	WireframeTriangle triangle1;
-	WireframeTriangle triangle2;
-	int count;
-	//近平面
-	triangle1 = WireframeTriangle{point4s};
-	count = WireframeTriangleClip(-1.0f, 0.0f, triangle1, triangle2);
-	EXPECT_EQ(triangle1.points[0], point4s[0]);
-	EXPECT_EQ(triangle1.points[1], point4s[1]);
-	EXPECT_EQ(triangle1.points[2], point4s[2]);
-	EXPECT_EQ(count, 1);
-	//远平面
-	triangle1 = WireframeTriangle{point4s};
-	count = WireframeTriangleClip(1.0f, -1.0f, triangle1, triangle2);
-	EXPECT_EQ(triangle1.points[0], point4s[0]);
-	EXPECT_EQ(triangle1.points[1], point4s[1]);
-	EXPECT_EQ(triangle1.points[2], point4s[2]);
-	EXPECT_EQ(count, 1);
-}
-
-TEST(WireframeTriangleClipCase, OnePointOutTest) {
-	Matrix4X4 Per = Perspective(1.0f, 2.0f);
-	auto nearPoint3s = array<Point3, 3>{
+	auto point3s = Array<Point3, 3>{
 		Point3{0.0f, 0.0f, 4.0f},
 		Point3{1.0f, 0.0f, 2.0f},
 		Point3{0.0f, 0.0f, 0.0f}
 	};
-	auto point4s = Stream(nearPoint3s, [&](const Point3& p) {
-		return Per * p.ToPoint4();
-	});
 	auto nearLeft = Per * Point3{0.0f, 0.0f, 1.0f}.ToPoint4();
 	auto nearRight = Per * Point3{0.5f, 0.0f, 1.0f}.ToPoint4();
-	WireframeTriangle triangle1 = WireframeTriangle{point4s};
-	WireframeTriangle triangle2;
-	int count = WireframeTriangleClip(-1.0f, 0.0f, triangle1, triangle2);
-	EXPECT_EQ(count, 2);
-	EXPECT_EQ(triangle1.points[0], point4s[0]);
-	EXPECT_EQ(triangle1.points[1], nearLeft);
-	EXPECT_EQ(triangle1.points[2], nearRight);
-	EXPECT_EQ(triangle2.points[0], point4s[0]);
-	EXPECT_EQ(triangle2.points[1], nearRight);
-	EXPECT_EQ(triangle2.points[2], point4s[1]);
+	auto point4s = point3s.Stream([&](const Point3& p) {
+		return Per * p.ToPoint4();
+	});
+	auto clipTriangles = TriangleClip(-1.0f, 0.0f, point4s);
+	EXPECT_EQ(clipTriangles.Size(), 2);
+	auto it = clipTriangles.begin();
+	EXPECT_EQ((*it)[0], point4s[0]);
+	EXPECT_EQ((*it)[1], nearLeft);
+	EXPECT_EQ((*it)[2], nearRight);
+	it += 1;
+	EXPECT_EQ((*it)[0], point4s[0]);
+	EXPECT_EQ((*it)[1], nearRight);
+	EXPECT_EQ((*it)[2], point4s[1]);
 }
-TEST(WireframeTriangleClipCase, TwoPointOutTest) {
+
+TEST(TriangleClip, TwoPointOut) {
 	Matrix4X4 Per = Perspective(1.0f, 2.0f);
-	array<Point3, 3> nearPoint3s{
+	Array<Point3, 3> point3s{
 		Point3{0.0f, 0.0f, 2.0f},
 		Point3{1.0f, 0.0f, 0.0f},
 		Point3{0.0f, 0.0f, -2.0f},
 	};
-	auto point4s = Stream(nearPoint3s, [&](const Point3& p) {
+	auto point4s = point3s.Stream([&](const Point3& p) {
 		return Per * p.ToPoint4();
 	});
 	auto nearLeft = Per * Point3{0.0f, 0.0f, 1.0f}.ToPoint4();
 	auto nearRight = Per * Point3{0.5f, 0.0f, 1.0f}.ToPoint4();
-	WireframeTriangle triangle1 = WireframeTriangle{point4s};
-	WireframeTriangle triangle2;
-	int count = WireframeTriangleClip(-1.0f, 0.0f, triangle1, triangle2);
-	EXPECT_EQ(count, 1);
-	EXPECT_EQ(triangle1.points[0], point4s[0]);
-	EXPECT_EQ(triangle1.points[1], nearLeft);
-	EXPECT_EQ(triangle1.points[2], nearRight);
+	auto clipTriangles = TriangleClip(-1.0f, 0.0f, point4s);
+	auto it = clipTriangles.begin();
+	EXPECT_EQ((*it)[0], point4s[0]);
+	EXPECT_EQ((*it)[1], nearLeft);
+	EXPECT_EQ((*it)[2], nearRight);
 }
 
-TEST(WireframeTriangleToLine2DCase,Test) {
-
+TEST(GetNotRepeatingLine2Ds, 4Triangle9Line) {
+	auto Per = Perspective(1.0f, 2.0f);
+	auto point3s = Array<Point3, 3>{
+		Point3{0.0f, 1.0f, 3.0f},
+		Point3{1.5f, 2.0f, 1.5f},
+		Point3{0.0f, 3.0f, 0.0f},
+	};
+	auto point4s = point3s.Stream([&](const Point3& p) {
+		return Per * p.ToPoint4();
+	});
+	auto clipTriangles = TriangleNearAndFarClip(point4s);
+	EXPECT_EQ(clipTriangles.Size(), 4);
+	EXPECT_EQ(GetNotRepeatingScreenLines(clipTriangles).Size(), 9);
 }
-*/
+
+TEST(GetNotRepeatingLine2Ds, 3Triangle7Line) {
+	auto Per = Perspective(1.0f, 2.0f);
+	auto point3s = Array<Point3, 3>{
+		Point3{0.0f, 1.0f, 3.0f},
+		Point3{3.0f, 2.0f, 3.0f},
+		Point3{0.0f, 3.0f, 0.0f},
+	};
+	auto point4s = point3s.Stream([&](const Point3& p) {
+		return Per * p.ToPoint4();
+	});
+	auto clipTriangles = TriangleNearAndFarClip(point4s);
+	EXPECT_EQ(clipTriangles.Size(), 3);
+	EXPECT_EQ(GetNotRepeatingScreenLines(clipTriangles).Size(), 7);
+}
+
+TEST(GetNotRepeatingLine2Ds, 2Triangle5Line) {
+	auto Per = Perspective(1.0f, 2.0f);
+	auto point3s = Array<Point3, 3>{
+		Point3{0.0f, 1.0f, 2.0f},
+		Point3{1.0f, 2.0f, 2.0f},
+		Point3{0.0f, 3.0f, 0.0f},
+	};
+	auto point4s = point3s.Stream([&](const Point3& p) {
+		return Per * p.ToPoint4();
+	});
+	auto clipTriangles = TriangleNearAndFarClip(point4s);
+	EXPECT_EQ(clipTriangles.Size(), 2);
+	EXPECT_EQ(GetNotRepeatingScreenLines(clipTriangles).Size(), 5);
+}
+
+TEST(GetNotRepeatingLine2Ds, 1Triangle3Line) {
+	auto Per = Perspective(1.0f, 2.0f);
+	auto point3s = Array<Point3, 3>{
+		Point3{0.0f, 1.0f, 2.0f},
+		Point3{1.0f, 2.0f, 2.0f},
+		Point3{0.0f, 3.0f, 1.0f},
+	};
+	auto point4s = point3s.Stream([&](const Point3& p) {
+		return Per * p.ToPoint4();
+	});
+	auto clipTriangles = TriangleNearAndFarClip(point4s);
+	EXPECT_EQ(clipTriangles.Size(), 1);
+	EXPECT_EQ(GetNotRepeatingScreenLines(clipTriangles).Size(), 3);
+}
+
+TEST(GetNotRepeatingLine2Ds, 0Triangle0Line) {
+	auto Per = Perspective(1.0f, 2.0f);
+	auto point3s = Array<Point3, 3>{
+		Point3{0.0f, 1.0f, -1.0f},
+		Point3{1.0f, 2.0f, 0.0f},
+		Point3{0.0f, 3.0f, 0.0f},
+	};
+	auto point4s = point3s.Stream([&](const Point3& p) {
+		return Per * p.ToPoint4();
+	});
+	auto clipTriangles = TriangleNearAndFarClip(point4s);
+	EXPECT_EQ(clipTriangles.Size(), 0);
+	EXPECT_EQ(GetNotRepeatingScreenLines(clipTriangles).Size(), 0);
+}

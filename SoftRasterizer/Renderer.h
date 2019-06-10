@@ -23,11 +23,6 @@ struct IndexData {
 	Array<unsigned, 3> textureCoordinateIndex;
 };
 
-struct Line2D {
-	Point2 pointA, pointB;
-	bool operator==(const Line2D& l) const;
-};
-
 /*
 	内存是图片顺序存储的 index = y * width + x
 	但是 GetPixel SetPixel 是上下倒转的
@@ -62,7 +57,13 @@ bool BackCulling(Array<Point3, 3> points);
 	判断剪裁后是否有直线在框中
 	返回true时 line为剪裁后直线
 */
-bool Line2DClip(Line2D& line);
+bool ScreenLineClip(Array<Point2, 2>& points);
+
+/*
+	判断两直线是否相等
+	点不一定对应
+*/
+bool ScreenLineEqual(Array<Point2, 2> pointsA, Array<Point2, 2> pointsB);
 
 /*
     计算超平面上的点
@@ -88,7 +89,7 @@ MaxCapacityArray<Array<Point4, 3>, 2> TriangleClip(float C, float D, const Array
 	因为最多生成4个被切割的三角形 
 	所以最多生成9条不同的线段
 */
-MaxCapacityArray<Line2D, 9> GetNotRepeatingLine2Ds(const MaxCapacityArray<Array<Point4, 3>, 4> & triangles);
+MaxCapacityArray<Array<Point2, 2>, 9> GetNotRepeatingScreenLines(const MaxCapacityArray<Array<Point4, 3>, 4> & triangles);
 
 /*
 	计算重心系数
@@ -212,7 +213,7 @@ public:
 							   function<Color(Point4, Point2, const Texture&)> pixelShader);
 private:
 	//画白色线段 覆盖在图像最前面
-	void DrawLine2D(Line2D line);
+	void DrawScreenLine(Array<Point2, 2> line);
 	//画三角形
 	void DrawTriangle(const Array<Point4, 3> & points,
 					  const Array<Point2, 3> & coordinate,
@@ -263,11 +264,11 @@ inline void Renderer::DrawTriangleByWireframe(const vector<Point3>& points,
 		//剪裁后最多得到4个三角形
 		MaxCapacityArray<Array<Point4, 3>, 4> triangles = TriangleNearAndFarClip(point4);
 		//获取不重复线段
-		auto line2Ds = GetNotRepeatingLine2Ds(triangles);
+		auto screenLines = GetNotRepeatingScreenLines(triangles);
 		//绘制线段
-		for (auto& line2D : line2Ds) {
-			if (Line2DClip(line2D)) {
-				DrawLine2D(line2D);
+		for (auto& screenLine : screenLines) {
+			if (ScreenLineClip(screenLine)) {
+				DrawScreenLine(screenLine);
 			}
 		}
 	}

@@ -1,5 +1,5 @@
 #include "Math.h"
-
+#include <cmath>
 float ComputeLine(float k, float x, float b) {
 	return k * x + b;
 }
