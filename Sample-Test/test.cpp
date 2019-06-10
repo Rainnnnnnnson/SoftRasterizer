@@ -38,7 +38,7 @@ TEST(LittleFunction, EdgeTest) {
 	EXPECT_EQ(ReversePixelToIndex(20, 20, 100, 50), 2920);
 }
 
-TEST(BackCullingCase, Test) {
+TEST(BackCulling, Test) {
 	//Èñ½Ç
 	Point3 up = {0.0f, 1.0f, 0.0f};
 	Point3 leftDown = {-1.0f, -1.0f, 0.0f};
@@ -65,7 +65,7 @@ TEST(BackCullingCase, Test) {
 	}));
 }
 
-TEST(Line2DCase, Test) {
+TEST(Line2D, EqualsTest) {
 	Line2D a{{0.0f, 1.0f}, {1.0f, 0.0f}};
 	Line2D b{{1.0f, 0.0f}, {0.0f, 1.0f}};
 	Line2D c = a;
@@ -78,7 +78,7 @@ TEST(Line2DCase, Test) {
 
 }
 
-TEST(Line2DClipCase, Test) {
+TEST(Line2DClip, Test) {
 	// A B C
 	// D E F
 	// G H I
@@ -98,7 +98,7 @@ TEST(Line2DClipCase, Test) {
 	EXPECT_TRUE(Line2DClip(AG));
 }
 
-TEST(ComputePlanePointCase, Test) {
+TEST(ComputePlanePoint, Test) {
 	Matrix4X4 Per = Perspective(1.0f, 2.0f);
 	//½üÆ½Ãæ
 	Point3 A{-2.0f, 0.0f, 0.0f};
@@ -124,6 +124,23 @@ TEST(ComputePlanePointCase, Test) {
 	EXPECT_TRUE(abs(H1.x - H2.x) < 0.000001f);
 	EXPECT_TRUE(abs(H1.y - H2.y) < 0.000001f);
 	EXPECT_TRUE(abs(H1.z - H2.z) < 0.000001f);
+}
+
+TEST(TriangleClip, NotClipTest) {
+	Matrix4X4 Per = Perspective(1.0f, 2.0f);
+	auto point3s = Array<Point3, 3>{
+		Point3{0.0f, 0.0f, 2.0f},
+		Point3{-1.0f, 0.0f, 1.0f},
+		Point3{1.0f, 0.0f, 1.0f}
+	};
+	auto point4s = point3s.Stream([&](const Point3& p) {
+		return Per * p.ToPoint4();
+	});
+	auto nearClipTriangles = TriangleClip(-1.0f, 0.0f, point4s);
+	EXPECT_EQ(nearClipTriangles.Size(), 1);
+	EXPECT_EQ((*nearClipTriangles.begin())[0], point4s[0]);
+	EXPECT_EQ((*nearClipTriangles.begin())[1], point4s[1]);
+	EXPECT_EQ((*nearClipTriangles.begin())[2], point4s[2]);
 }
 
 /*

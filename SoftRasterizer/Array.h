@@ -68,6 +68,10 @@ public:
 		size += 1;
 	}
 
+	std::size_t Size() {
+		return size;
+	}
+
 	Type* begin() {
 		return &elements[0];
 	}
