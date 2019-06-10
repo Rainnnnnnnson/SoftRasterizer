@@ -45,11 +45,11 @@ public:
 	}
 
 	Type& operator[](std::size_t pos) {
-		return &elements[pos];
+		return elements[pos];
 	}
 
 	const Type& operator[](std::size_t pos) const {
-		return &elements[pos];
+		return elements[pos];
 	}
 private:
 	std::array<Type, size> elements;

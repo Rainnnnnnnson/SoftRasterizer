@@ -16,12 +16,12 @@ int RGBImage::GetHeight() const {
 
 RGBColor RGBImage::GetPixel(int x, int y) const {
 	assert(InPixelXY(x, y, width, height));
-	return rgbs[static_cast<size_t>(width) * y + x];
+	return rgbs[ReversePixelToIndex(x, y, width, height)];
 }
 
 void RGBImage::SetPixel(int x, int y, RGBColor rgb) {
 	assert(InPixelXY(x, y, width, height));
-	rgbs[static_cast<size_t>(width) * y + x] = rgb;
+	rgbs[ReversePixelToIndex(x, y, width, height)] = rgb;
 }
 
 //================================================================================================================
@@ -45,7 +45,10 @@ constexpr RGBColor black = {0, 0, 0};
 
 Renderer::Renderer(int width, int height)
 	: width(width), height(height),
-	zBuffer(static_cast<size_t>(width)* height, {clearDepth, black}) {}
+	zBuffer(static_cast<size_t>(width)* height, {clearDepth, black}) {
+	assert(width > 0);
+	assert(height > 0);
+}
 
 void Renderer::Clear() {
 	for (auto& z : zBuffer) {
@@ -69,8 +72,7 @@ RGBImage Renderer::GenerateImage() const {
 void Renderer::DrawZBuffer(int x, int y, float z, RGBColor color) {
 	assert(InPixelXY(x, y, width, height));
 	assert(InScreenZ(z));
-	//坐标系由下至上
-	int index = (height + 1 - y) * width + x;
+	int index = PixelToIndex(x, y, width);
 	zBuffer[index] = {z, color};
 }
 
@@ -81,8 +83,7 @@ void Renderer::DrawWritePixel(int x, int y) {
 	constexpr float lineDepth = -1.0f;
 	//白色
 	constexpr RGBColor write = {255, 255, 255};
-	//坐标系由下至上
-	int index = (height + 1 - y) * width + x;
+	int index = PixelToIndex(x, y, width);
 	zBuffer[index] = {lineDepth, write};
 }
 
@@ -199,7 +200,7 @@ void Renderer::DrawTriangle(const Array<Point4, 3> & points,
 				//写入zBuffer
 				float depth = pixelPoint.z / pixelPoint.w;
 				//浮点数精度问题 需要限制到[0,1]
-				std::clamp(depth, 0.0f, 1.0f);
+				depth = std::clamp(depth, 0.0f, 1.0f);
 				//执行像素着色器
 				Color color = pixelShader(pixelPoint, textureCoordinate);
 				//绘制进入图像
@@ -491,4 +492,13 @@ bool InScreenZ(float z) {
 
 bool InPixelXY(int x, int y, int width, int height) {
 	return x >= 0 && x < width && y >= 0 && y < height;
+}
+
+int PixelToIndex(int x, int y, int width) {
+	return y * width + x;
+}
+
+int ReversePixelToIndex(int x, int y, int width, int height) {
+	int reverseY = height - y - 1;
+	return reverseY * width + x;
 }

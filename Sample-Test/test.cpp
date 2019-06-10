@@ -30,9 +30,12 @@ TEST(LittleFunction, EdgeTest) {
 
 	Color c{-1.0f, 0.0f, 2.0f};
 	RGBColor rgb = ColorToRGBColor(c);
-	EXPECT_TRUE(rgb.r == 0);
-	EXPECT_TRUE(rgb.g == 0);
-	EXPECT_TRUE(rgb.b == 255);
+	EXPECT_EQ(rgb.r, 0);
+	EXPECT_EQ(rgb.g, 0);
+	EXPECT_EQ(rgb.b, 255);
+
+	EXPECT_EQ(PixelToIndex(20, 20, 100), 2020);
+	EXPECT_EQ(ReversePixelToIndex(20, 20, 100, 50), 2920);
 }
 
 TEST(BackCullingCase, Test) {

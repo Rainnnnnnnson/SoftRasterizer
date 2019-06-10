@@ -28,7 +28,10 @@ struct Line2D {
 	bool operator==(const Line2D& l) const;
 };
 
-//像素坐标系从左下角 一行一行往上计算
+/*
+	内存是图片顺序存储的 index = y * width + x
+	但是 GetPixel SetPixel 是上下倒转的
+*/
 class RGBImage {
 public:
 	RGBImage(int width, int height);
@@ -123,14 +126,32 @@ float PixelToScreen(int pixel, int pixelCount);
 */
 int ScreenToPixel(float screen, int pixelCount);
 
-//判断XY是否在[-1,1]
+/*
+	判断XY是否在[-1,1]
+*/
 bool InScreenXY(Point2 point);
 
-//判断Z是否在[0,1]
+/*
+	判断Z是否在[0,1]
+*/
 bool InScreenZ(float z);
 
-//判断x y 是否在像素空间中
+/*
+	判断x y 是否在像素空间中
+*/
 bool InPixelXY(int x, int y, int width, int height);
+
+/*
+	像素坐标生成一维数组索引
+*/
+int PixelToIndex(int x, int y, int width);
+
+/*
+	图片像素的存放 和 坐标系 很不一样
+	传入的 x 和 y 是从左下角计算的
+	返回值 是从左上角计算的
+*/
+int ReversePixelToIndex(int x, int y, int width, int height);
 
 /*
 	可视空间 x * y * z == [-1,1) * [-1.1) * [0,1]
@@ -139,14 +160,24 @@ bool InPixelXY(int x, int y, int width, int height);
 class Renderer {
 public:
 	Renderer(int width, int height);
+
+	/*
+		清空zbuffer 变为黑色 深度清空
+	*/
 	void Clear();
+
+	/*
+		根据当前zbuffer状态生成图像
+	*/
 	RGBImage GenerateImage() const;
 
-	//画白色线框 
-	//覆盖在所有图像的最前面
-	//顶点着色器可能对顶点进行改变
-	//像素着色器没有影响 所以没有这个着色器
-	//画出的线框是剪裁以后的
+	/*
+		画白色线框 
+		覆盖在所有图像的最前面
+		顶点着色器可能对顶点进行改变
+		像素着色器没有影响 所以没有这个着色器
+		画出的线框是剪裁以后的
+	*/
 	template<typename Texture>
 	void DrawTriangleByWireframe(const vector<Point3>& points,
 								 const vector<Point2>& textureCoordinates,
@@ -154,22 +185,24 @@ public:
 								 const vector<IndexData>& indexDatas,
 								 function<Point4(Point3, Point2, const Texture&)> vertexShader);
 
-	//画纹理三角形
-	//Texture 自定义纹理类型 格式自定义
-	//顶点法线 在纹理中实现
-	//在两个着色器中实现各种效果
-	//
-	//vertexShader 顶点着色器
-	//返回参数 Point4 经过矩阵转化后的其次坐标 注意保留 w 分量   
-	//输入参数 Point3 原始世界坐标 
-	//        Point2 原始纹理坐标 
-	//        const Texture& 自定义纹理的引用
-	//
-	//pixelShader  像素着色器
-	//返回参数 Color 输出颜色[0,1]=>[0,255] 小于0取0 大于1取255 
-	//输入参数 Point4 经过重心三角形计算后的坐标 可以通过逆矩阵返回原始坐标
-	//        Point2 经过重心三角形透视矫正后的纹理坐标
-	//        const Texture& 自定义纹理的引用
+	/*
+		画纹理三角形
+		Texture 自定义纹理类型 格式自定义
+		顶点法线 在纹理中实现
+		在两个着色器中实现各种效果
+		
+		vertexShader 顶点着色器
+		返回参数 Point4 经过矩阵转化后的其次坐标 注意保留 w 分量   
+		输入参数 Point3 原始世界坐标 
+		        Point2 原始纹理坐标 
+		        const Texture& 自定义纹理的引用
+		
+		pixelShader  像素着色器
+		返回参数 Color 输出颜色[0,1]=>[0,255] 小于0取0 大于1取255 
+		输入参数 Point4 经过重心三角形计算后的坐标 可以通过逆矩阵返回原始坐标
+		        Point2 经过重心三角形透视矫正后的纹理坐标
+		        const Texture& 自定义纹理的引用
+	*/
 	template<typename Texture>
 	void DrawTriangleByTexture(const vector<Point3>& points,
 							   const vector<Point2>& textureCoordinates,
@@ -180,6 +213,7 @@ public:
 private:
 	//画白色线段 覆盖在图像最前面
 	void DrawLine2D(Line2D line);
+	//画三角形
 	void DrawTriangle(const Array<Point4, 3> & points,
 					  const Array<Point2, 3> & coordinate,
 					  const Array<Point4, 3> & needComputePoint,
@@ -192,11 +226,13 @@ private:
 private:
 	int width;
 	int height;
-	//储存深度
-	//清空状态所有zbuffer时  2.0f
-	//存在画三角形存储在     [0,1]
-	//绘制白色直线的存储在   -1.0f
-	//像素坐标系从左下角 一行一行往上计算
+	/*
+		储存深度
+		清空状态所有zbuffer时  2.0f
+		存在画三角形存储在     [0,1]
+		绘制白色直线的存储在   -1.0f
+		存储索引 index = y * width + x
+	*/
 	vector<std::pair<float, RGBColor>> zBuffer;
 };
 
@@ -230,7 +266,7 @@ inline void Renderer::DrawTriangleByWireframe(const vector<Point3>& points,
 		auto line2Ds = GetNotRepeatingLine2Ds(triangles);
 		//绘制线段
 		for (auto& line2D : line2Ds) {
-			if (Line2DClip) {
+			if (Line2DClip(line2D)) {
 				DrawLine2D(line2D);
 			}
 		}
