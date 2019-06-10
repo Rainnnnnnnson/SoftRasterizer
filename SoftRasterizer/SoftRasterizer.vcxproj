@@ -132,7 +132,7 @@
     <ClCompile Include="Renderer.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="ArrayStream.h" />
+    <ClInclude Include="Array.h" />
     <ClInclude Include="Assertion.h" />
     <ClInclude Include="Math.h" />
     <ClInclude Include="Renderer.h" />

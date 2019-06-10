@@ -42,7 +42,7 @@ Point4 Point3::ToPoint4() const {
 }
 
 bool Point4::operator==(const Point4& p) const {
-	return x == p.x && y == p.y && z == p.z & w == p.w;
+	return (x == p.x) && (y == p.y) && (z == p.z) && (w == p.w);
 }
 
 Point3 Point4::ToPoint3() const {

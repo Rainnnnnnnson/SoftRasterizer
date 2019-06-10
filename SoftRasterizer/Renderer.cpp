@@ -1,4 +1,5 @@
 #include "Renderer.h"
+
 RGBImage::RGBImage(int width, int height)
 	: width(width), height(height),
 	rgbs(static_cast<size_t>(width)* height, RGBColor{0, 0, 0}) {}
@@ -146,280 +147,6 @@ void Renderer::DrawLine2D(Line2D line) {
 	}
 }
 
-//======================================================
-
-int WireframeTriangleClip(float C, float D, WireframeTriangle& triangle1, WireframeTriangle& triangle2) {
-	//判断点在平面的哪一侧
-	auto pointBools = Stream(triangle1.points, [](const Point4& p) {
-		return std::pair<Point4, float>{p, 0.0f};
-	});
-	//带入超平面得到梯度方向的距离
-	for (auto& pointBool : pointBools) {
-		float g = pointBool.first.z * C + pointBool.first.w * D;
-		pointBool.second = g;
-	}
-	//根据距离排序
-	std::sort(pointBools.begin(), pointBools.end(),
-	    [](const std::pair<Point4, float>& pointBool1, const std::pair<Point4, float>& pointBool2) {
-		    return pointBool1.second < pointBool2.second;
-	    }
-	);
-	//在平面梯度负方向的点的个数
-	int pointCount = static_cast<int>(std::count_if(pointBools.begin(), pointBools.end(),
-	    [](const std::pair<Point4, float>& pointBool) {
-		    return pointBool.second <= 0.0f;
-	    }
-	));
-	//根据点的个数来得到剪裁后的三角形
-	if (pointCount == 0) {
-		return 0;
-	}
-	if (pointCount == 3) {
-		return 1;
-	}
-	//需要剪裁
-	if (pointCount == 1) {
-		Point4 newPoint1 = ComputePlanePoint(C, D, pointBools[0].first, pointBools[2].first);
-		Point4 newPoint2 = ComputePlanePoint(C, D, pointBools[0].first, pointBools[1].first);
-		triangle1 = {{pointBools[0].first, newPoint1, newPoint2}};
-		return 1;
-	} else {
-		Point4 newPoint1 = ComputePlanePoint(C, D, pointBools[0].first, pointBools[2].first);
-		Point4 newPoint2 = ComputePlanePoint(C, D, pointBools[1].first, pointBools[2].first);
-		triangle1 = {{pointBools[0].first, newPoint1, newPoint2}};
-		triangle2 = {{pointBools[0].first, newPoint2, pointBools[1].first}};
-		return 2;
-	}
-}
-
-
-
-array<Line2D, 3> WireframeTriangleToLine2D(WireframeTriangle triangle) {
-	auto point2s = Stream(triangle.points, [](const Point4& p) {
-		return p.ToPoint3().GetPoint2();
-	});
-	return array<Line2D, 3>{
-		Line2D{point2s[0], point2s[1]},
-		Line2D{point2s[1], point2s[2]},
-		Line2D{point2s[2], point2s[0]},
-	};
-}
-
-vector<Line2D> GetNotRepeatingLine2D(const vector<WireframeTriangle>& wireframeTriangles) {
-	//最多只会剪裁成9条线
-	//远近屏幕剪裁完不再需要Z轴
-	constexpr int maxLineCount = 9;
-	vector<Line2D> lines;
-	lines.reserve(maxLineCount);
-	for (auto& wireframeTriangle : wireframeTriangles) {
-		//线框三角形变成2D线段
-		array<Line2D, 3> line2Ds = WireframeTriangleToLine2D(wireframeTriangle);
-		//不重复线段加入容器中
-		//因为最多9条线段 就不考虑复杂度了 
-		for (auto& line2D : line2Ds) {
-			if (std::find_if(lines.begin(), lines.end(),
-				//找不到相等的线段
-				[=](const Line2D& line) { return line2D == line; }) == lines.end()) {
-				lines.push_back(line2D);
-			}
-		}
-	}
-	return lines;
-}
-
-vector<WireframeTriangle> WireframeTriangleNearAndFarClip(WireframeTriangle triangle) {
-	//最大只可能剪裁出四个三角形
-	constexpr int maxTriangleCount = 4;
-	vector<WireframeTriangle> wireframeTriangles;
-	wireframeTriangles.reserve(maxTriangleCount);
-	//超平面剪裁 Ax + By + Cz + Dw = 0
-	//得到超平面上的点(x,y,z,w)
-	//近平面剪裁 -1z + nw = 0 (n = 0) 梯度指向Z轴负方向
-	//远平面剪裁 1z + fw = 0 (f = 1) 梯度指向Z轴正方向
-	//triangle1 分裂成 triangle1 triangle2
-	WireframeTriangle triangle1 = triangle;
-	WireframeTriangle triangle2;
-	int count = WireframeTriangleClip(-1.0f, 0.0f, triangle1, triangle2);
-	if (count == 1) {
-		//triangle1 分裂成 triangle1 triangle2
-		int count1 = WireframeTriangleClip(1.0f, 1.0f, triangle1, triangle2);
-		if (count1 == 1) {
-			wireframeTriangles.push_back(triangle1);
-		} else if (count1 == 2) {
-			wireframeTriangles.push_back(triangle1);
-			wireframeTriangles.push_back(triangle2);
-		}
-	} else if (count == 2) {
-		//triangle1 分裂成 triangle1 triangle3
-		WireframeTriangle triangle3;
-		int count21 = WireframeTriangleClip(1.0f, 1.0f, triangle1, triangle3);
-		if (count21 == 1) {
-			wireframeTriangles.push_back(triangle1);
-		} else if (count21 == 2) {
-			wireframeTriangles.push_back(triangle1);
-			wireframeTriangles.push_back(triangle3);
-		}
-		//triangle2 分裂成 triangle2 triangle4
-		WireframeTriangle triangle4;
-		int count22 = WireframeTriangleClip(1.0f, 1.0f, triangle2, triangle4);
-		if (count22 == 1) {
-			wireframeTriangles.push_back(triangle2);
-		} else if (count22 == 2) {
-			wireframeTriangles.push_back(triangle2);
-			wireframeTriangles.push_back(triangle4);
-		}
-	}
-	return wireframeTriangles;
-}
-
-int TextureTriangleClip(float C, float D, TextureTriangle& triangle1, TextureTriangle& triangle2) {
-	//和线框三角形的逻辑一样
-	//判断点在平面的哪一侧
-	auto triangleBools = Stream(array<int, 3>{0, 1, 2}, [&](int i) {
-		return std::tuple<Point4, Point2, bool>{triangle1.points[i], triangle1.textureCoordinate[i], false};
-	});
-	//在平面梯度负方向(CVV方向)的点 (包含平面上的点) 为true
-	for (auto& triangleBool : triangleBools) {
-		float g = std::get<0>(triangleBool).z * C + std::get<0>(triangleBool).w * D;
-		if (g <= 0.0f) {
-			bool& b = std::get<2>(triangleBool);
-			b = true;
-		}
-	}
-	//在平面梯度负方向(CVV方向)的点 排在前面
-	std::sort(triangleBools.begin(), triangleBools.end(),
-		[](const std::tuple<Point4, Point2, bool>& pointBool1, const std::tuple<Point4, Point2, bool>& pointBool2) {
-		    return (std::get<2>(pointBool1) == true) && (std::get<2>(pointBool2) == false);
-	    }
-	);
-	//在平面梯度负方向(CVV方向)的点的个数
-	int pointCount = static_cast<int>(std::count_if(triangleBools.begin(), triangleBools.end(),
-	    [](const std::tuple<Point4, Point2, bool>& pointBool) {
-		    return std::get<2>(pointBool) == true;
-	    }
-	));
-	//根据点的个数来得到剪裁后的三角形
-	if (pointCount == 0) {
-		return 0;
-	}
-	if (pointCount == 3) {
-		return 1;
-	}
-	/*
-		pointCount == 1
-
-			   * Point0
-			   |\   newPoint[1]
-	___________|_\↙______________
-  newPoint[0]↗|  \
-			   |  /Point1
-			   | /
-			   |/
-			  Point2
-
-	=========================================================
-
-		pointCount == 2
-
-			   * Point0
-			   |\
-			   | \
-			   |  \ Point1
-	___________|__/_______________
-			 ↗| /↖
-	newPoint[0]|/   newPoint[1]
-			   Point2
-
-	*/
-	//需要剪裁
-	bool OnePointUp = pointCount == 1;
-	array<Point4, 2> newPoints;
-	if (OnePointUp) {
-		newPoints[0] = ComputePlanePoint(C, D, std::get<0>(triangleBools[0]), std::get<0>(triangleBools[2]));
-		newPoints[1] = ComputePlanePoint(C, D, std::get<0>(triangleBools[0]), std::get<0>(triangleBools[1]));
-	} else {
-		newPoints[0] = ComputePlanePoint(C, D, std::get<0>(triangleBools[0]), std::get<0>(triangleBools[2]));
-		newPoints[1] = ComputePlanePoint(C, D, std::get<0>(triangleBools[1]), std::get<0>(triangleBools[2]));
-	}
-	//转化为平面2D点
-	auto point2s = Stream(triangleBools, [](const auto& tb) {
-		return std::get<0>(tb).ToPoint3().GetPoint2();
-	});
-	//计算重心系数
-	auto coefficients = Stream(newPoints, [&](const Point4& p) {
-		return ComputeCenterCoefficient(p.ToPoint3().GetPoint2(), point2s);
-	});
-	//获取坐标的W分量
-	auto pointsW = Stream(triangleBools, [](const auto& pb) {
-		return std::get<0>(pb).w;
-	});
-	//获取纹理坐标
-	auto textureCoodinates = Stream(triangleBools, [](const auto& pb) {
-		return std::get<1>(pb);
-	});
-	//用重心系数计算纹理坐标
-	array<Point2, 2> centerCoodinates{
-		ComputeCenterTextureCoordinate(coefficients[0], textureCoodinates, pointsW),
-		ComputeCenterTextureCoordinate(coefficients[1], textureCoodinates, pointsW)
-	};
-	//两种情况三角形
-	if (OnePointUp) {
-		triangle1.points = {std::get<0>(triangleBools[0]), newPoints[0], newPoints[1]};
-		triangle1.textureCoordinate = {std::get<1>(triangleBools[0]), centerCoodinates[0], centerCoodinates[1]};
-		return 1;
-	} else {
-		triangle1.points = {std::get<0>(triangleBools[0]), newPoints[0], newPoints[1]};
-		triangle1.textureCoordinate = {std::get<1>(triangleBools[0]), centerCoodinates[0], centerCoodinates[1]};
-		triangle2.points = {std::get<0>(triangleBools[0]), newPoints[1], std::get<0>(triangleBools[1])};
-		triangle1.textureCoordinate = {std::get<1>(triangleBools[0]), centerCoodinates[1], std::get<1>(triangleBools[1])};
-		return 2;
-	}
-}
-
-vector<TextureTriangle> TextureTriangleNearAndFarClip(TextureTriangle triangle) {
-	//最大只可能剪裁出四个三角形
-	constexpr int maxTriangleCount = 4;
-	vector<TextureTriangle> textureTriangles;
-	textureTriangles.reserve(maxTriangleCount);
-	//和线框三角形的逻辑一样
-	//triangle1 分裂成 triangle1 triangle2
-	TextureTriangle triangle1 = triangle;
-	TextureTriangle triangle2;
-	int count = TextureTriangleClip(-1.0f, 0.0f, triangle1, triangle2);
-	if (count == 1) {
-		//triangle1 分裂成 triangle1 triangle2
-		int count1 = TextureTriangleClip(1.0f, 1.0f, triangle1, triangle2);
-		if (count1 == 1) {
-			textureTriangles.push_back(triangle1);
-		} else if (count1 == 2) {
-			textureTriangles.push_back(triangle1);
-			textureTriangles.push_back(triangle2);
-		}
-	} else if (count == 2) {
-		//triangle1 分裂成 triangle1 triangle3
-		TextureTriangle triangle3;
-		int count21 = TextureTriangleClip(1.0f, 1.0f, triangle1, triangle3);
-		if (count21 == 1) {
-			textureTriangles.push_back(triangle1);
-		} else if (count21 == 2) {
-			textureTriangles.push_back(triangle1);
-			textureTriangles.push_back(triangle3);
-		}
-		//triangle2 分裂成 triangle2 triangle4
-		TextureTriangle triangle4;
-		int count22 = TextureTriangleClip(1.0f, 1.0f, triangle2, triangle4);
-		if (count22 == 1) {
-			textureTriangles.push_back(triangle2);
-		} else if (count22 == 2) {
-			textureTriangles.push_back(triangle2);
-			textureTriangles.push_back(triangle4);
-		}
-	}
-	return textureTriangles;
-}
-
-//===================================================================================
-
 unsigned char ColorFloatToByte(float f) {
 	float test = f * 255.0f;
 	if (test <= 0) {
@@ -439,7 +166,7 @@ RGBColor ColorToRGBColor(Color c) {
 	};
 }
 
-bool BackCulling(array<Point3, 3> points) {
+bool BackCulling(Array<Point3, 3> points) {
 	Vector3 AB = points[1] - points[0];
 	Vector3 BC = points[2] - points[1];
 	//Z轴正方向
@@ -515,6 +242,11 @@ bool Line2DClip(Line2D& line) {
 	float t0 = *std::max_element(t0Array.begin(), t0Array.end());
 	float t1 = *std::min_element(t1Array.begin(), t1Array.end());
 
+	//反过来说明在框外
+	if (t0 >= t1) {
+		return false;
+	}
+
 	float newX0 = x0 + t0 * deltaX;
 	float newY0 = y0 + t0 * deltaY;
 	float newX1 = x0 + t1 * deltaX;
@@ -546,71 +278,172 @@ Point4 ComputePlanePoint(float C, float D, Point4 point0, Point4 point1) {
 	};
 }
 
-void TriangleNearAndFarClip(const array<Point4, 3> * points, vector<array<Point4, 3>> * ps, 
-							const array<Point2, 3> * textureCoodinates, vector<array<Point2, 3>> * ts, 
-							bool compute) {
-	assert(points != nullptr);
-	assert(ps != nullptr);
-	assert(compute ? 
-		((textureCoodinates != nullptr) && (ts != nullptr)) : 
-		((textureCoodinates == nullptr) && (ts == nullptr))
-	);
-	//最大只可能剪裁出四个三角形
-	constexpr int maxTriangleCount = 4;
-
-	//返回顶点
-	ps->reserve(maxTriangleCount);
-	//triangle1 分裂成 triangle1 triangle2
-	array<Point4, 3> triangle1 = *points;
-	array<Point4, 3> triangle2;
-	int count = TriangleClip(-1.0f, 0.0f, triangle1, triangle2);
-	if (count == 1) {
-		//triangle1 分裂成 triangle1 triangle2
-		int count1 = TriangleClip(1.0f, 1.0f, triangle1, triangle2);
-		if (count1 == 1) {
-			ps->push_back(triangle1);
-		} else if (count1 == 2) {
-			ps->push_back(triangle1);
-			ps->push_back(triangle2);
-		}
-	} else if (count == 2) {
-		//triangle1 分裂成 triangle1 triangle3
-		array<Point4, 3> triangle3;
-		int count21 = TriangleClip(1.0f, 1.0f, triangle1, triangle3);
-		if (count21 == 1) {
-			ps->push_back(triangle1);
-		} else if (count21 == 2) {
-			ps->push_back(triangle1);
-			ps->push_back(triangle3);
-		}
-		//triangle2 分裂成 triangle2 triangle4
-		array<Point4, 3> triangle4;
-		int count22 = TriangleClip(1.0f, 1.0f, triangle2, triangle4);
-		if (count22 == 1) {
-			ps->push_back(triangle2);
-		} else if (count22 == 2) {
-			ps->push_back(triangle2);
-			ps->push_back(triangle4);
+MaxCapacityArray<Array<Point4, 3>, 4> TriangleNearAndFarClip(const Array<Point4, 3> & points) {
+	MaxCapacityArray<Array<Point4, 3>, 4> triangleArray;
+	MaxCapacityArray<Array<Point4, 3>, 2> nearClipTriangles = TriangleClip(-1.0f, 0.0f, points);
+	for (auto& nearClipTriangle : nearClipTriangles) {
+		auto farClipTriangles = TriangleClip(1.0f, -1.0f, nearClipTriangle);
+		for (auto& farClipTriangle : farClipTriangles) {
+			triangleArray.Push(farClipTriangle);
 		}
 	}
-	//计算纹理
-	if (compute) {
-		//TODO
-	}
+	return triangleArray;
 }
 
-//返回重心系数
-array<float, 3> ComputeCenterCoefficient(Point2 point, array<Point2, 3> points) {
+MaxCapacityArray<Array<Point4, 3>, 2> TriangleClip(float C, float D, const Array<Point4, 3> & points) {
+	//判断点在平面的哪一侧
+	auto pointBools = points.Stream([](const Point4& p) {
+		return std::pair<Point4, float>{p, 0.0f};
+	});
+	//带入超平面得到梯度方向的距离
+	for (auto& pointBool : pointBools) {
+		pointBool.second = pointBool.first.z * C + pointBool.first.w * D;
+	}
+	//根据距离排序
+	std::sort(pointBools.begin(), pointBools.end(), [](auto& pointBool1, auto& pointBool2) {
+		return pointBool1.second < pointBool2.second;
+	});
+	//在平面梯度负方向的点的个数
+	int pointCount = static_cast<int>(std::count_if(pointBools.begin(), pointBools.end(), [](auto& pointBool) {
+		return pointBool.second <= 0.0f;
+	}));
+	//需要返回的三角形
+	MaxCapacityArray<Array<Point4, 3>, 2> triangleArray;
+	if (pointCount == 1) {
+		/*
+					   *Point0
+					   |\   newPoint[1]
+		  _____________|_\↙______________
+		  newPoint[0]↗|  \
+					   |  /Point1
+					   | /
+					   |/
+					   *Point2
+		*/
+		Point4 newPoint1 = ComputePlanePoint(C, D, pointBools[0].first, pointBools[2].first);
+		Point4 newPoint2 = ComputePlanePoint(C, D, pointBools[0].first, pointBools[1].first);
+		triangleArray.Push({pointBools[0].first, newPoint1, newPoint2});
+	} else if (pointCount == 2) {
+		/*
+					   * Point0
+					   |\
+					   | \
+					   |  \ Point1
+			___________|__/_______________
+					 ↗| /↖
+			newPoint[0]|/   newPoint[1]
+	    		       *Point2
+        */
+		Point4 newPoint1 = ComputePlanePoint(C, D, pointBools[0].first, pointBools[2].first);
+		Point4 newPoint2 = ComputePlanePoint(C, D, pointBools[1].first, pointBools[2].first);
+		triangleArray.Push({pointBools[0].first, newPoint1, newPoint2});
+		triangleArray.Push({pointBools[0].first, newPoint2, pointBools[1].first});
+	} else if (pointCount == 3) {
+		triangleArray.Push(points);
+	} else {
+		//pointCount == 0
+		//没有三角形要添加
+	}
+	return triangleArray;
+}
+
+MaxCapacityArray<Line2D, 9> GetNotRepeatingLine2Ds(const MaxCapacityArray<Array<Point4, 3>, 4> & triangles) {
+	MaxCapacityArray<Line2D, 9> line2DArray;
+	for (auto& triangle : triangles) {
+		auto point2s = triangle.Stream([](const Point4& p) {
+			return p.ToPoint3().GetPoint2();
+		});
+		//线框三角形变成2D线段
+		array<Line2D, 3> line2Ds{
+			Line2D{point2s[0], point2s[1]},
+			Line2D{point2s[1], point2s[2]},
+			Line2D{point2s[2], point2s[0]},
+		};
+		//不重复线段加入容器中
+		//因为最多9条线段 就不考虑复杂度了 
+		for (auto& line2D : line2Ds) {
+			if (std::find_if(line2DArray.begin(), line2DArray.end(),
+				[&](auto& line) { return line2D == line; }) == line2DArray.end()) {
+				line2DArray.Push(line2D);
+			}
+		}
+	}
+	return line2DArray;
+}
+
+void HandlePixel(int width, int height, 
+				 const Array<Point4, 3> & points, 
+				 const Array<Point2, 3> & coordinate, 
+				 const Array<Point4, 3> & needComputePoint, 
+				 function<Color(Point4, Point2)> ComputeColor, 
+				 function<void(int, int, float, Color)> drawZBuffer) {
+	//获取三角形中顶点最大最小的x y值
+	//用于计算需要绘制的边框
+	auto xValue = points.Stream([](const Point4& p) {
+		return p.x;
+	});
+	std::sort(xValue.begin(), xValue.end(), std::less<float>());
+	auto yValue = points.Stream([](const Point4& p) {
+		return p.y;
+	});
+	std::sort(yValue.begin(), yValue.end(), std::less<float>());
+	//确定需要绘制的边界
+	int xMax = std::min(ScreenToPixel(xValue[2], width), width - 1);
+	int xMin = std::max(ScreenToPixel(xValue[0], width), 0);
+	int yMax = std::min(ScreenToPixel(yValue[2], height), height - 1);
+	int yMin = std::max(ScreenToPixel(yValue[0], height), 0);
+	//需要绘制的三角形映射至屏幕
+	auto mainPoints = points.Stream([](const Point4& p) {
+		return p.ToPoint3().GetPoint2();
+	});
+	//循环限定矩形 [xMin,xMax] * [yMin,yMax]
+	for (int yIndex = yMin; yIndex <= yMax; yIndex++) {
+		for (int xIndex = xMin; xIndex <= xMax; xIndex++) {
+			//每一个需要绘制的屏幕上的点
+			Point2 screenPoint{
+				PixelToScreen(xIndex, width), PixelToScreen(yIndex, height)
+			};
+			//计算重心系数
+			Array<float, 3> coefficient = ComputeCenterCoefficient(screenPoint, mainPoints);
+			//在三角形内部
+			bool inTriangle = std::all_of(coefficient.begin(), coefficient.end(), [](float f) {
+				return f > 0.0f;
+			});
+			if (inTriangle) {
+				//使用重心系数计算出像素位置对应的齐次坐标点
+				Point4 pixelPoint = ComputeCenterPoint(coefficient, points);
+				//所有点的w坐标
+				auto pointsW = points.Stream([](const Point4& p) {
+					return p.w;
+				});
+				//矫正后的纹理坐标
+				Point2 textureCoordinate = ComputeCenterTextureCoordinate(
+					coefficient, coordinate, pointsW
+				);
+				//写入zBuffer
+				float depth = pixelPoint.z / pixelPoint.w;
+				//浮点数精度问题 需要限制到[0,1]
+				std::clamp(depth, 0.0f, 1.0f);
+				//执行像素着色器
+				Color color = ComputeColor(pixelPoint, textureCoordinate);
+				//绘制进入图像
+				drawZBuffer(xIndex, yIndex, depth, color);
+			}
+		}
+	}
+
+
+}
+Array<float, 3> ComputeCenterCoefficient(Point2 point, Array<Point2, 3> points) {
 	float fa = ComputeLineEquation(points[0], points[1], points[2]);
 	float fb = ComputeLineEquation(points[1], points[2], points[0]);
 	float fc = ComputeLineEquation(points[2], points[0], points[1]);
 	float alpha = ComputeLineEquation(point, points[1], points[2]) / fa;
 	float beta = ComputeLineEquation(point, points[2], points[0]) / fb;
 	float gamma = ComputeLineEquation(point, points[0], points[1]) / fc;
-	return {alpha, beta, gamma};
+	return Array<float, 3>{alpha, beta, gamma};
 }
-
-Point4 ComputeCenterPoint(array<float, 3> coefficients, array<Point4, 3> points) {
+Point4 ComputeCenterPoint(Array<float, 3> coefficients, Array<Point4, 3> points) {
 	return Point4{
 		coefficients[0] * points[0].x + coefficients[1] * points[1].x + coefficients[2] * points[2].x,
 		coefficients[0] * points[0].y + coefficients[1] * points[1].y + coefficients[2] * points[2].y,
@@ -618,10 +451,9 @@ Point4 ComputeCenterPoint(array<float, 3> coefficients, array<Point4, 3> points)
 		coefficients[0] * points[0].w + coefficients[1] * points[1].w + coefficients[2] * points[2].w
 	};
 }
-
-//纹理矫正
-Point2 ComputeCenterTextureCoordinate(array<float, 3> coefficients, array<Point2, 3> textureCoordinates,
-									  array<float, 3> pointW) {
+Point2 ComputeCenterTextureCoordinate(Array<float, 3> coefficients, 
+									  Array<Point2, 3> textureCoordinates, 
+									  Array<float, 3> pointW) {
 	float screenU = (coefficients[0] * (textureCoordinates[0].x / pointW[0])) +
 		(coefficients[1] * (textureCoordinates[1].x / pointW[1])) +
 		(coefficients[2] * (textureCoordinates[2].x / pointW[2]));
