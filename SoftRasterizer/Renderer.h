@@ -18,9 +18,9 @@ struct RGBColor {
 };
 
 struct IndexData {
-	std::size_t textureIndex;
-	Array<std::size_t, 3> pointIndex;
-	Array<std::size_t, 3> textureCoordinateIndex;
+	unsigned textureIndex;
+	Array<unsigned, 3> pointIndex;
+	Array<unsigned, 3> textureCoordinateIndex;
 };
 
 struct Line2D {
@@ -88,19 +88,6 @@ MaxCapacityArray<Array<Point4, 3>, 2> TriangleClip(float C, float D, const Array
 MaxCapacityArray<Line2D, 9> GetNotRepeatingLine2Ds(const MaxCapacityArray<Array<Point4, 3>, 4> & triangles);
 
 /*
-	像素宽和长
-	三角形的顶点和纹理
-	需要计算的三角形顶点
-	主要是方便单元测试
-*/
-void HandlePixel(int width, int height,
-				 const Array<Point4, 3> & points,
-				 const Array<Point2, 3> & coordinate,
-				 const Array<Point4, 3> & needComputePoint,
-				 function<Color(Point4, Point2)> ComputeColor,
-				 function<void(int, int, float, Color)> drawZBuffer);
-
-/*
 	计算重心系数
 */
 Array<float, 3> ComputeCenterCoefficient(Point2 point, Array<Point2, 3> points);
@@ -155,9 +142,6 @@ public:
 	void Clear();
 	RGBImage GenerateImage() const;
 
-	//画白色线段 覆盖在图像最前面
-	void DrawLine2D(Line2D line);
-
 	//画白色线框 
 	//覆盖在所有图像的最前面
 	//顶点着色器可能对顶点进行改变
@@ -194,6 +178,13 @@ public:
 							   function<Point4(Point3, Point2, const Texture&)> vertexShader,
 							   function<Color(Point4, Point2, const Texture&)> pixelShader);
 private:
+	//画白色线段 覆盖在图像最前面
+	void DrawLine2D(Line2D line);
+	void DrawTriangle(const Array<Point4, 3> & points,
+					  const Array<Point2, 3> & coordinate,
+					  const Array<Point4, 3> & needComputePoint,
+					  function<Color(Point4, Point2)> pixelShader);
+
 	//这个用于绘制纹理三角形来画像素的
 	void DrawZBuffer(int x, int y, float z, RGBColor color);
 	//这个用于绘制白色直线覆盖在最前面的点
@@ -229,7 +220,8 @@ inline void Renderer::DrawTriangleByWireframe(const vector<Point3>& points,
 		//执行顶点着色器后得到点
 		auto point4 = Array<int, 3>{0, 1, 2}.Stream([&](int i) {
 			return vertexShader(points[data.pointIndex[i]],
-								textureCoordinates[data.textureCoordinateIndex[i]], textures[data.textureIndex]);
+								textureCoordinates[data.textureCoordinateIndex[i]], 
+								textures[data.textureIndex]);
 		});
 		//线框模式下不进行背面消除 显示全部线段
 		//剪裁后最多得到4个三角形
@@ -282,13 +274,9 @@ inline void Renderer::DrawTriangleByTexture(const vector<Point3>& points,
 		});
 		for (auto& trianglePoint : trianglePoints) {
 			//光栅化阶段
-			HandlePixel(width, height, mainPoints, mainTextureCoordinate, trianglePoint, [&](Point4 p, Point2 t) {
-				//像素着色器
+			DrawTriangle(mainPoints, mainTextureCoordinate, trianglePoint, [&](Point4 p, Point2 t) {
+				//会调用像素着色器
 				return pixelShader(p, t, textures[data.textureIndex]);
-			}, [&](int x, int y, float z, Color c) {
-				//变成RGB 写入zbuffer
-				RGBColor rgb = ColorToRGBColor(c);
-				DrawZBuffer(x, y, z, rgb);
 			});
 		}
 	}

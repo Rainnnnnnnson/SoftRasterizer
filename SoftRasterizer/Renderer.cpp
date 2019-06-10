@@ -1,8 +1,10 @@
 #include "Renderer.h"
 
-RGBImage::RGBImage(int width, int height)
-	: width(width), height(height),
-	rgbs(static_cast<size_t>(width)* height, RGBColor{0, 0, 0}) {}
+RGBImage::RGBImage(int width, int height) : width(width), height(height),
+rgbs(static_cast<size_t>(width)* height, RGBColor{0, 0, 0}) {
+	assert(width > 0);
+	assert(height > 0);
+}
 
 int RGBImage::GetWidth() const {
 	return width;
@@ -144,6 +146,66 @@ void Renderer::DrawLine2D(Line2D line) {
 	} else {
 		//k = NaN
 		//两点重合不绘制
+	}
+}
+
+void Renderer::DrawTriangle(const Array<Point4, 3> & points, 
+							const Array<Point2, 3> & coordinate, 
+							const Array<Point4, 3> & needComputePoint, 
+							function<Color(Point4, Point2)> pixelShader) {
+//获取三角形中顶点最大最小的x y值
+	//用于计算需要绘制的边框
+	auto xValue = points.Stream([](const Point4& p) {
+		return p.x;
+	});
+	std::sort(xValue.begin(), xValue.end(), std::less<float>());
+	auto yValue = points.Stream([](const Point4& p) {
+		return p.y;
+	});
+	std::sort(yValue.begin(), yValue.end(), std::less<float>());
+	//确定需要绘制的边界
+	int xMax = std::min(ScreenToPixel(xValue[2], width), width - 1);
+	int xMin = std::max(ScreenToPixel(xValue[0], width), 0);
+	int yMax = std::min(ScreenToPixel(yValue[2], height), height - 1);
+	int yMin = std::max(ScreenToPixel(yValue[0], height), 0);
+	//需要绘制的三角形映射至屏幕
+	auto mainPoints = points.Stream([](const Point4& p) {
+		return p.ToPoint3().GetPoint2();
+	});
+	//循环限定矩形 [xMin,xMax] * [yMin,yMax]
+	for (int yIndex = yMin; yIndex <= yMax; yIndex++) {
+		for (int xIndex = xMin; xIndex <= xMax; xIndex++) {
+			//每一个需要绘制的屏幕上的点
+			Point2 screenPoint{
+				PixelToScreen(xIndex, width), PixelToScreen(yIndex, height)
+			};
+			//计算重心系数
+			Array<float, 3> coefficient = ComputeCenterCoefficient(screenPoint, mainPoints);
+			//在三角形内部
+			bool inTriangle = std::all_of(coefficient.begin(), coefficient.end(), [](float f) {
+				return f > 0.0f;
+			});
+			if (inTriangle) {
+				//使用重心系数计算出像素位置对应的齐次坐标点
+				Point4 pixelPoint = ComputeCenterPoint(coefficient, points);
+				//所有点的w坐标
+				auto pointsW = points.Stream([](const Point4& p) {
+					return p.w;
+				});
+				//矫正后的纹理坐标
+				Point2 textureCoordinate = ComputeCenterTextureCoordinate(
+					coefficient, coordinate, pointsW
+				);
+				//写入zBuffer
+				float depth = pixelPoint.z / pixelPoint.w;
+				//浮点数精度问题 需要限制到[0,1]
+				std::clamp(depth, 0.0f, 1.0f);
+				//执行像素着色器
+				Color color = pixelShader(pixelPoint, textureCoordinate);
+				//绘制进入图像
+				DrawZBuffer(xIndex, yIndex, depth, ColorToRGBColor(color));
+			}
+		}
 	}
 }
 
@@ -371,69 +433,6 @@ MaxCapacityArray<Line2D, 9> GetNotRepeatingLine2Ds(const MaxCapacityArray<Array<
 	return line2DArray;
 }
 
-void HandlePixel(int width, int height, 
-				 const Array<Point4, 3> & points, 
-				 const Array<Point2, 3> & coordinate, 
-				 const Array<Point4, 3> & needComputePoint, 
-				 function<Color(Point4, Point2)> ComputeColor, 
-				 function<void(int, int, float, Color)> drawZBuffer) {
-	//获取三角形中顶点最大最小的x y值
-	//用于计算需要绘制的边框
-	auto xValue = points.Stream([](const Point4& p) {
-		return p.x;
-	});
-	std::sort(xValue.begin(), xValue.end(), std::less<float>());
-	auto yValue = points.Stream([](const Point4& p) {
-		return p.y;
-	});
-	std::sort(yValue.begin(), yValue.end(), std::less<float>());
-	//确定需要绘制的边界
-	int xMax = std::min(ScreenToPixel(xValue[2], width), width - 1);
-	int xMin = std::max(ScreenToPixel(xValue[0], width), 0);
-	int yMax = std::min(ScreenToPixel(yValue[2], height), height - 1);
-	int yMin = std::max(ScreenToPixel(yValue[0], height), 0);
-	//需要绘制的三角形映射至屏幕
-	auto mainPoints = points.Stream([](const Point4& p) {
-		return p.ToPoint3().GetPoint2();
-	});
-	//循环限定矩形 [xMin,xMax] * [yMin,yMax]
-	for (int yIndex = yMin; yIndex <= yMax; yIndex++) {
-		for (int xIndex = xMin; xIndex <= xMax; xIndex++) {
-			//每一个需要绘制的屏幕上的点
-			Point2 screenPoint{
-				PixelToScreen(xIndex, width), PixelToScreen(yIndex, height)
-			};
-			//计算重心系数
-			Array<float, 3> coefficient = ComputeCenterCoefficient(screenPoint, mainPoints);
-			//在三角形内部
-			bool inTriangle = std::all_of(coefficient.begin(), coefficient.end(), [](float f) {
-				return f > 0.0f;
-			});
-			if (inTriangle) {
-				//使用重心系数计算出像素位置对应的齐次坐标点
-				Point4 pixelPoint = ComputeCenterPoint(coefficient, points);
-				//所有点的w坐标
-				auto pointsW = points.Stream([](const Point4& p) {
-					return p.w;
-				});
-				//矫正后的纹理坐标
-				Point2 textureCoordinate = ComputeCenterTextureCoordinate(
-					coefficient, coordinate, pointsW
-				);
-				//写入zBuffer
-				float depth = pixelPoint.z / pixelPoint.w;
-				//浮点数精度问题 需要限制到[0,1]
-				std::clamp(depth, 0.0f, 1.0f);
-				//执行像素着色器
-				Color color = ComputeColor(pixelPoint, textureCoordinate);
-				//绘制进入图像
-				drawZBuffer(xIndex, yIndex, depth, color);
-			}
-		}
-	}
-
-
-}
 Array<float, 3> ComputeCenterCoefficient(Point2 point, Array<Point2, 3> points) {
 	float fa = ComputeLineEquation(points[0], points[1], points[2]);
 	float fb = ComputeLineEquation(points[1], points[2], points[0]);
