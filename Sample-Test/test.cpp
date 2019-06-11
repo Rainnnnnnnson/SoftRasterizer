@@ -276,3 +276,135 @@ TEST(GetNotRepeatingLine2Ds, 0Triangle0Line) {
 	EXPECT_EQ(clipTriangles.Size(), 0);
 	EXPECT_EQ(GetNotRepeatingScreenLines(clipTriangles).Size(), 0);
 }
+
+TEST(ComputeCenterCoefficient, Test) {
+	auto coefficent = ComputeCenterCoefficient(
+		Point2{0.0f, 0.0f},
+		{{-1.0f, 1.0f}, {-1.0f, -1.0f}, {1.0f, -1.0f}}
+	);
+	EXPECT_EQ(coefficent[0], 0.5f);
+	EXPECT_EQ(coefficent[1], 0.0f);
+	EXPECT_EQ(coefficent[2], 0.5f);
+}
+
+TEST(ComputeCenterPoint, Test) {
+	auto point = ComputeCenterPoint(
+		{0.5f, 0.25f, 0.25f},
+		{{1.0f, 2.0f, 3.0f, 4.0f}, {2.0f, 2.0f, 2.0f, 2.0f}, {4.0f, 3.0f, 2.0f, 1.0f}}
+	);
+	EXPECT_EQ(point.x, 2.0f);
+	EXPECT_EQ(point.y, 2.25f);
+	EXPECT_EQ(point.z, 2.5f);
+	EXPECT_EQ(point.w, 2.75f);
+}
+
+TEST(ComputeCenterTextureCoordinate, Test) {
+	auto per = Perspective(1.0f, 2.0f);
+	auto pointsW = Array<Point3, 3>{
+		{0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 2.0f}, {1.0f, 0.0f, 1.0f}
+	}.Stream([&](Point3 p) {
+		return (per * p.ToPoint4()).w;
+	});
+	Point2 t = ComputeCenterTextureCoordinate(
+		{0.5f, 0.5f, 0.0f}, {{0.0f, 0.5f}, {0.0f, 1.0f}, {0.5f, 0.5f}}, pointsW
+	);
+	EXPECT_EQ(t.x, 0.0f);
+	float pointZ = (per * Point3{0.0f, 0.0f, 1.5f}.ToPoint4()).ToPoint3().z;
+	EXPECT_EQ(t.y, pointZ);
+}
+
+TEST(Matrix3x3, Transpose) {
+	Matrix3X3 m1{
+		1.0f, 2.0f, 3.0f,
+		4.0f, 5.0f, 6.0f,
+		7.0f, 8.0f, 9.0f
+	};
+	m1 = m1.Transpose();
+	Matrix3X3 m2{
+		1.0f, 4.0f, 7.0f,
+		2.0f, 5.0f, 8.0f,
+		3.0f, 6.0f, 9.0f
+	};
+	for (int i = 0; i < 3; i++) {
+		for (int j = 0; j < 3; j++) {
+			EXPECT_EQ(m1.f[i][j], m2.f[i][j]);
+		}
+	}
+}
+
+TEST(Matrix3x3, Determinant) {
+	Matrix3X3 m1{
+		1.0f, 1.0f, 3.0f,
+		0.0f, 5.0f, 6.0f,
+		7.0f, 8.0f, 0.0f
+	};
+	EXPECT_EQ(m1.Determinant(), -111.0f);
+}
+
+TEST(Matrix4X4, Transpose) {
+	Matrix4X4 m1{
+		1.0f, 2.0f, 3.0f, 4.0f,
+		5.0f, 6.0f, 7.0f, 8.0f,
+		9.0f, 10.0f, 11.0f, 12.0f,
+		13.0f, 14.0f, 15.0f, 16.0f
+	};
+	m1 = m1.Transpose();
+	Matrix4X4 m2{
+		1.0f, 5.0f, 9.0f, 13.0f,
+		2.0f, 6.0f, 10.0f, 14.0f,
+		3.0f, 7.0f, 11.0f, 15.0f,
+		4.0f, 8.0f, 12.0f, 16.0f
+	};
+	for (int i = 0; i < 4; i++) {
+		for (int j = 0; j < 4; j++) {
+			EXPECT_EQ(m1.f[i][j], m2.f[i][j]);
+		}
+	}
+}
+
+TEST(Matrix4x4, Determinant) {
+	Matrix4X4 m1{
+		1.0f, 1.0f, 3.0f, 2.0f,
+		0.0f, 5.0f, 6.0f, 3.0f,
+		7.0f, 8.0f, 0.0f, 4.0f,
+		9.0f, 8.0f, 0.0f, 5.0f
+	};
+	EXPECT_EQ(m1.Determinant(), 9.0f);
+}
+
+TEST(Matrix4x4, Inverse1) {
+	Matrix4X4 m1{
+		1.0f, 0.0f, 0.0f, 0.0f,
+		0.0f, 1.0f, 0.0f, 0.0f,
+		0.0f, 0.0f, 1.0f, 0.0f,
+		0.0f, 0.0f, 0.0f, 1.0f
+	};
+	auto m2 = m1.Inverse();
+	for (int i = 0; i < 4; i++) {
+		for (int j = 0; j < 4; j++) {
+			EXPECT_EQ(m1.f[i][j], m2.f[i][j]);
+		}
+	}
+}
+
+TEST(Matrix4x4, Inverse2) {
+	Matrix4X4 m1{
+		1.0f, 0.0f, 0.0f, 0.0f,
+		0.0f, 1.0f, 0.0f, 0.0f,
+		0.0f, 0.0f, 2.0f, -2.0f,
+		0.0f, 0.0f, 1.0f, 0.0f
+	};
+	EXPECT_EQ(m1.Determinant(), 2.0f);
+	m1 = m1.Inverse();
+	Matrix4X4 m2{
+		1.0f, 0.0f, 0.0f, 0.0f,
+		0.0f, 1.0f, 0.0f, 0.0f,
+		0.0f, 0.0f, 0.0f, 1.0f,
+		0.0f, 0.0f, -0.5f, 1.0f
+	};
+	for (int i = 0; i < 4; i++) {
+		for (int j = 0; j < 4; j++) {
+			EXPECT_EQ(m1.f[i][j], m2.f[i][j]);
+		}
+	}
+}

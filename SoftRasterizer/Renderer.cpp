@@ -425,8 +425,7 @@ MaxCapacityArray<Array<Point2, 2>, 9> GetNotRepeatingScreenLines(const MaxCapaci
 		for (auto& line : lines) {
 			//找不到相同的直线
 			bool notRepecting = std::find_if(returnLines.begin(), returnLines.end(), [&](Array<Point2, 2> returnLine) {
-				//TODO
-				return false;
+				return ScreenLineEqual(line, returnLine);
 			}) == returnLines.end();
 			if (notRepecting) {
 				returnLines.Push(line);
@@ -453,17 +452,19 @@ Point4 ComputeCenterPoint(Array<float, 3> coefficients, Array<Point4, 3> points)
 		coefficients[0] * points[0].w + coefficients[1] * points[1].w + coefficients[2] * points[2].w
 	};
 }
-Point2 ComputeCenterTextureCoordinate(Array<float, 3> coefficients, 
-									  Array<Point2, 3> textureCoordinates, 
+Point2 ComputeCenterTextureCoordinate(Array<float, 3> coefficients,
+									  Array<Point2, 3> textureCoordinates,
 									  Array<float, 3> pointW) {
-	float screenU = (coefficients[0] * (textureCoordinates[0].x / pointW[0])) +
-		(coefficients[1] * (textureCoordinates[1].x / pointW[1])) +
-		(coefficients[2] * (textureCoordinates[2].x / pointW[2]));
-	float screenV = (coefficients[0] * (textureCoordinates[0].y / pointW[0])) +
-		(coefficients[1] * (textureCoordinates[1].y / pointW[1])) +
-		(coefficients[2] * (textureCoordinates[2].y / pointW[2]));
+	float screenU = (coefficients[0] * (textureCoordinates[0].x / pointW[0]))
+		+ (coefficients[1] * (textureCoordinates[1].x / pointW[1]))
+		+ (coefficients[2] * (textureCoordinates[2].x / pointW[2]));
+	float screenV = (coefficients[0] * (textureCoordinates[0].y / pointW[0]))
+		+ (coefficients[1] * (textureCoordinates[1].y / pointW[1]))
+		+ (coefficients[2] * (textureCoordinates[2].y / pointW[2]));
 	constexpr float one = 1.0f;
-	float screenOne = (1.0f / pointW[0]) + (1.0f / pointW[1]) + (1.0f / pointW[2]);
+	float screenOne = coefficients[0] * (1.0f / pointW[0])
+		+ coefficients[1] * (1.0f / pointW[1])
+		+ coefficients[2] * (1.0f / pointW[2]);
 	return Point2{screenU / screenOne, screenV / screenOne};
 }
 

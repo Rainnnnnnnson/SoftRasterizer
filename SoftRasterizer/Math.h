@@ -49,6 +49,9 @@ struct Vector3 {
 struct Matrix3X3 {
 	float f[3][3];
 	Matrix4X4 ToMatrix4X4() const;
+	Matrix3X3 Inverse() const;
+	Matrix3X3 Transpose() const;
+	float Determinant() const;
 	Matrix3X3 operator*(const Matrix3X3& m) const;
 	Point3 operator*(const Point3& p) const;
 	Vector3 operator*(const Vector3& v) const;
@@ -57,6 +60,9 @@ struct Matrix3X3 {
 struct Matrix4X4 {
 	float f[4][4];
 	Matrix3X3 GetMatrix3X3() const;
+	Matrix4X4 Inverse() const;
+	Matrix4X4 Transpose() const;
+	float Determinant() const;
 	Matrix4X4 operator*(const Matrix4X4& m) const;
 	Point4 operator*(const Point4& p) const;
 };
