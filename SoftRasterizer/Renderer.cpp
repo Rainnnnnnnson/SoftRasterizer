@@ -91,25 +91,24 @@ void DrawLineByMiddlePoint(Array<Point2, 2> points, int width, int height, funct
 	float newk = (pointB.y - pointA.y) / (pointB.x - pointA.x);
 	//增量区分[-1,0)和 [0,1) 这样就不用写多几个分支
 	float addtion = newk > 0.0f ? 1.0f : -1.0f;
+	//半个像素高度
+	const float halfPixelHeight = 0.5f * GetPixelDelta(height);
 	//获取中点的Y值
-	float middleY = pointA.y + addtion * 0.5f * GetPixelDelta(height);
+	float middleY = pointA.y + addtion * halfPixelHeight;
 	//遍历
 	for (int pixelX = xMin; pixelX <= xMax; pixelX++) {
 		float x = PixelToScreen(pixelX, width);
 		Point2 middlePoint = Point2{x, middleY};
 		//取[0,1)作为例子 表示在直线是否在上方
-		bool up = addtion * ComputeLineEquation(middlePoint, pointA, pointB) > 0.0f;
-		float y;
-		if (up) {
-			y = middleY - addtion * 0.5f * GetPixelDelta(height);
-		} else {
-			y = middleY + addtion * 0.5f * GetPixelDelta(height);
-		}
+		bool pointUpLine = ComputeLineEquation(middlePoint, pointA, pointB) > 0.0f;
+		float y = pointUpLine ? middleY - halfPixelHeight : middleY + halfPixelHeight;
 		int pixelY = ScreenToPixel(y, height);
 		func(pixelX, pixelY);
 		//取[0,1)作为例子 中点在直线下方 需要提高中点一个单位
-		if (!up) {
-			middleY += addtion * GetPixelDelta(height);
+		if (pointUpLine && (addtion < 0.0f)) {
+			middleY -= GetPixelDelta(height);
+		} else if ((!pointUpLine) && (addtion > 0.0f)) {
+			middleY += GetPixelDelta(height);
 		}
 	}
 }
@@ -219,14 +218,20 @@ RGBColor ColorToRGBColor(Color c) {
 	};
 }
 
-bool BackCulling(Array<Point3, 3> points) {
-	Vector3 AB = points[1] - points[0];
-	Vector3 BC = points[2] - points[1];
-	//Z轴正方向
-	constexpr Vector3 zAxis{0.0f, 0.0f, 1.0f};
-	Vector3 direction = AB.Cross(BC);
-	float cosX = direction.Dot(zAxis);
-	if (cosX >= 0.0f) {
+bool BackCulling(Array<Point2, 3> points) {
+	/*
+		计算向量
+		g等于行列式
+		i  j  k
+		x1 y1 0
+		x2 y2 0
+	*/
+	float x1 = points[1].x - points[0].x;
+	float y1 = points[1].y - points[0].y;
+	float x2 = points[2].x - points[1].x;
+	float y2 = points[2].y - points[1].y;
+	float g = x1 * y2 - y1 * x2;
+	if (g >= 0.0f) {
 		return true;
 	}
 	return false;

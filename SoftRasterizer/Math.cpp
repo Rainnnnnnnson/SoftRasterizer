@@ -12,10 +12,10 @@ Vector3 operator*(const float& f, const Vector3& v) {
 	return Vector3{f * v.x, f * v.y, f * v.z};
 }
 
-Matrix4X4 Perspective(float n, float f) {
+Matrix4X4 Perspective(float n, float f, float l, float r, float b, float t) {
 	return Matrix4X4{
-		1.0f, 0.0f, 0.0f, 0.0f,
-		0.0f, 1.0f, 0.0f, 0.0f,
+		(2.0f * n) / (r - l), 0.0f, -(r + l) / (r - l), 0.0f,
+		0.0f, (2.0f * n) / (t - b), -(t + b) / (t - b), 0.0f,
 		0.0f, 0.0f, f / (f - n), -(n * f) / (f - n),
 		0.0f, 0.0f, 1.0f, 0.0f
 	};

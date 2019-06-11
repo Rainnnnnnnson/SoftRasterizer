@@ -38,30 +38,33 @@ TEST(LittleFunction, EdgeTest) {
 	EXPECT_EQ(ReversePixelToIndex(20, 20, 100, 50), 2920);
 }
 
-TEST(BackCulling, Test) {
-	//Èñ½Ç
-	Point3 up = {0.0f, 1.0f, 0.0f};
-	Point3 leftDown = {-1.0f, -1.0f, 0.0f};
-	Point3 rightDown = {1.0f, -1.0f, 0.0f};
+TEST(BackCulling, Test1) {
+	auto per = Perspective(1.0f, 2.0f, -1.0f, 1.0f, -1.0f, 1.0f);
+	auto point2s = Array<Point3, 3>{
+		{0.0f, 1.0f, -2.0f}, {-1.0f, -1.0f, 1.0f}, {1.0f, -1.0f, 6.0f}
+	}.Stream([&](const Point3& p) {
+		auto point4 = per * p.ToPoint4();
+		return Point2{point4.x, point4.y};
+	});
 	//ÄæÊ±ÕëÏû³ý
-	EXPECT_TRUE(BackCulling(Array<Point3, 3>{
-		up, leftDown, rightDown
-	}));
+	EXPECT_TRUE(BackCulling(point2s));
 	//Ë³Ê±Õë²»Ïû³ý
-	EXPECT_FALSE(BackCulling(Array<Point3, 3>{
-		rightDown, leftDown, up
+	EXPECT_FALSE(BackCulling(Array<Point2, 3>{
+		point2s[2], point2s[1], point2s[0]
 	}));
-	//¶Û½Ç
-	Point3 leftUp = {-1.0, 1.0f, 0.0f};
-	Point3 middle = {0.0f, 0.0f, 0.0f};
-	Point3 right = {1.0f, 0.0f, 0.0f};
-	//ÄæÊ±ÕëÏû³ý
-	EXPECT_TRUE(BackCulling(Array<Point3, 3>{
-		leftUp, middle, right
-	}));
-	//Ë³Ê±Õë²»Ïû³ý
-	EXPECT_FALSE(BackCulling(Array<Point3, 3>{
-		right, middle, leftUp
+}
+
+TEST(BackCulling, Test2) {
+	auto per = Perspective(1.0f, 2.0f, -1.0f, 1.0f, -1.0f, 1.0f);
+	auto point2s = Array<Point3, 3>{
+		{-1.0, 1.0f, 0.5f}, {0.0f, 0.0f, 1.0f}, {1.0f, 0.0f, 1.5f}
+	}.Stream([&](const Point3& p) {
+		auto point4 = per * p.ToPoint4();
+		return Point2{point4.x, point4.y};
+	});
+	EXPECT_TRUE(BackCulling(point2s));
+	EXPECT_FALSE(BackCulling(Array<Point2, 3>{
+		point2s[2], point2s[1], point2s[0]
 	}));
 }
 
@@ -111,13 +114,13 @@ TEST(Line2DClip, Test) {
 }
 
 TEST(ComputePlanePoint, NearPlane) {
-	Matrix4X4 Per = Perspective(1.0f, 2.0f);
+	auto per = Perspective(1.0f, 2.0f, -1.0f, 1.0f, -1.0f, 1.0f);
 	Point3 A{-2.0f, 0.0f, 0.0f};
 	Point3 B{2.0f, 0.0f, 2.0f};
 	Point3 C{0.0f, 0.0f, 1.0f};
-	Point4 A4 = Per * A.ToPoint4();
-	Point4 B4 = Per * B.ToPoint4();
-	Point4 C4 = Per * C.ToPoint4();
+	Point4 A4 = per * A.ToPoint4();
+	Point4 B4 = per * B.ToPoint4();
+	Point4 C4 = per * C.ToPoint4();
 	Point3 D1 = C4.ToPoint3();
 	Point3 D2 = ComputePlanePoint(-1.0f, 0.0f, A4, B4).ToPoint3();
 	EXPECT_EQ(D1.x, D2.x);
@@ -126,13 +129,13 @@ TEST(ComputePlanePoint, NearPlane) {
 }
 
 TEST(ComputePlanePoint, FarPlane) {
-	Matrix4X4 Per = Perspective(1.0f, 2.0f);
+	auto per = Perspective(1.0f, 2.0f, -1.0f, 1.0f, -1.0f, 1.0f);
 	Point3 A{0.0f, 1.0f, -1.0f};
 	Point3 B{0.0f, 1.0f, 5.0f};
 	Point3 C{0.0f, 1.0f, 2.0f};
-	Point4 A4 = Per * A.ToPoint4();
-	Point4 B4 = Per * B.ToPoint4();
-	Point4 C4 = Per * C.ToPoint4();
+	Point4 A4 = per * A.ToPoint4();
+	Point4 B4 = per * B.ToPoint4();
+	Point4 C4 = per * C.ToPoint4();
 	Point3 D1 = C4.ToPoint3();
 	Point3 D2 = ComputePlanePoint(1.0f, -1.0f, A4, B4).ToPoint3();
 	EXPECT_EQ(D1.x, D2.x);
@@ -142,14 +145,14 @@ TEST(ComputePlanePoint, FarPlane) {
 
 
 TEST(TriangleClip, NotClipTest) {
-	Matrix4X4 Per = Perspective(1.0f, 2.0f);
+	auto per = Perspective(1.0f, 2.0f, -1.0f, 1.0f, -1.0f, 1.0f);
 	auto point3s = Array<Point3, 3>{
 		Point3{0.0f, 0.0f, 2.0f},
 		Point3{-1.0f, 0.0f, 1.0f},
 		Point3{1.0f, 0.0f, 1.0f}
 	};
 	auto point4s = point3s.Stream([&](const Point3& p) {
-		return Per * p.ToPoint4();
+		return per * p.ToPoint4();
 	});
 	auto clipTriangles = TriangleClip(-1.0f, 0.0f, point4s);
 	EXPECT_EQ(clipTriangles.Size(), 1);
@@ -160,16 +163,16 @@ TEST(TriangleClip, NotClipTest) {
 }
 
 TEST(TriangleClip, OnePointOut) {
-	Matrix4X4 Per = Perspective(1.0f, 2.0f);
+	auto per = Perspective(1.0f, 2.0f, -1.0f, 1.0f, -1.0f, 1.0f);
 	auto point3s = Array<Point3, 3>{
 		Point3{0.0f, 0.0f, 4.0f},
 		Point3{1.0f, 0.0f, 2.0f},
 		Point3{0.0f, 0.0f, 0.0f}
 	};
-	auto nearLeft = Per * Point3{0.0f, 0.0f, 1.0f}.ToPoint4();
-	auto nearRight = Per * Point3{0.5f, 0.0f, 1.0f}.ToPoint4();
+	auto nearLeft = per * Point3{0.0f, 0.0f, 1.0f}.ToPoint4();
+	auto nearRight = per * Point3{0.5f, 0.0f, 1.0f}.ToPoint4();
 	auto point4s = point3s.Stream([&](const Point3& p) {
-		return Per * p.ToPoint4();
+		return per * p.ToPoint4();
 	});
 	auto clipTriangles = TriangleClip(-1.0f, 0.0f, point4s);
 	EXPECT_EQ(clipTriangles.Size(), 2);
@@ -184,17 +187,17 @@ TEST(TriangleClip, OnePointOut) {
 }
 
 TEST(TriangleClip, TwoPointOut) {
-	Matrix4X4 Per = Perspective(1.0f, 2.0f);
+	auto per = Perspective(1.0f, 2.0f, -1.0f, 1.0f, -1.0f, 1.0f);
 	Array<Point3, 3> point3s{
 		Point3{0.0f, 0.0f, 2.0f},
 		Point3{1.0f, 0.0f, 0.0f},
 		Point3{0.0f, 0.0f, -2.0f},
 	};
 	auto point4s = point3s.Stream([&](const Point3& p) {
-		return Per * p.ToPoint4();
+		return per * p.ToPoint4();
 	});
-	auto nearLeft = Per * Point3{0.0f, 0.0f, 1.0f}.ToPoint4();
-	auto nearRight = Per * Point3{0.5f, 0.0f, 1.0f}.ToPoint4();
+	auto nearLeft = per * Point3{0.0f, 0.0f, 1.0f}.ToPoint4();
+	auto nearRight = per * Point3{0.5f, 0.0f, 1.0f}.ToPoint4();
 	auto clipTriangles = TriangleClip(-1.0f, 0.0f, point4s);
 	auto it = clipTriangles.begin();
 	EXPECT_EQ((*it)[0], point4s[0]);
@@ -203,14 +206,14 @@ TEST(TriangleClip, TwoPointOut) {
 }
 
 TEST(GetNotRepeatingLine2Ds, 4Triangle9Line) {
-	auto Per = Perspective(1.0f, 2.0f);
+	auto per = Perspective(1.0f, 2.0f, -1.0f, 1.0f, -1.0f, 1.0f);
 	auto point3s = Array<Point3, 3>{
 		Point3{0.0f, 1.0f, 3.0f},
 		Point3{1.5f, 2.0f, 1.5f},
 		Point3{0.0f, 3.0f, 0.0f},
 	};
 	auto point4s = point3s.Stream([&](const Point3& p) {
-		return Per * p.ToPoint4();
+		return per * p.ToPoint4();
 	});
 	auto clipTriangles = TriangleNearAndFarClip(point4s);
 	EXPECT_EQ(clipTriangles.Size(), 4);
@@ -218,14 +221,14 @@ TEST(GetNotRepeatingLine2Ds, 4Triangle9Line) {
 }
 
 TEST(GetNotRepeatingLine2Ds, 3Triangle7Line) {
-	auto Per = Perspective(1.0f, 2.0f);
+	auto per = Perspective(1.0f, 2.0f, -1.0f, 1.0f, -1.0f, 1.0f);
 	auto point3s = Array<Point3, 3>{
 		Point3{0.0f, 1.0f, 3.0f},
 		Point3{3.0f, 2.0f, 3.0f},
 		Point3{0.0f, 3.0f, 0.0f},
 	};
 	auto point4s = point3s.Stream([&](const Point3& p) {
-		return Per * p.ToPoint4();
+		return per * p.ToPoint4();
 	});
 	auto clipTriangles = TriangleNearAndFarClip(point4s);
 	EXPECT_EQ(clipTriangles.Size(), 3);
@@ -233,14 +236,14 @@ TEST(GetNotRepeatingLine2Ds, 3Triangle7Line) {
 }
 
 TEST(GetNotRepeatingLine2Ds, 2Triangle5Line) {
-	auto Per = Perspective(1.0f, 2.0f);
+	auto per = Perspective(1.0f, 2.0f, -1.0f, 1.0f, -1.0f, 1.0f);
 	auto point3s = Array<Point3, 3>{
 		Point3{0.0f, 1.0f, 2.0f},
 		Point3{1.0f, 2.0f, 2.0f},
 		Point3{0.0f, 3.0f, 0.0f},
 	};
 	auto point4s = point3s.Stream([&](const Point3& p) {
-		return Per * p.ToPoint4();
+		return per * p.ToPoint4();
 	});
 	auto clipTriangles = TriangleNearAndFarClip(point4s);
 	EXPECT_EQ(clipTriangles.Size(), 2);
@@ -248,14 +251,14 @@ TEST(GetNotRepeatingLine2Ds, 2Triangle5Line) {
 }
 
 TEST(GetNotRepeatingLine2Ds, 1Triangle3Line) {
-	auto Per = Perspective(1.0f, 2.0f);
+	auto per = Perspective(1.0f, 2.0f, -1.0f, 1.0f, -1.0f, 1.0f);
 	auto point3s = Array<Point3, 3>{
 		Point3{0.0f, 1.0f, 2.0f},
 		Point3{1.0f, 2.0f, 2.0f},
 		Point3{0.0f, 3.0f, 1.0f},
 	};
 	auto point4s = point3s.Stream([&](const Point3& p) {
-		return Per * p.ToPoint4();
+		return per * p.ToPoint4();
 	});
 	auto clipTriangles = TriangleNearAndFarClip(point4s);
 	EXPECT_EQ(clipTriangles.Size(), 1);
@@ -263,14 +266,14 @@ TEST(GetNotRepeatingLine2Ds, 1Triangle3Line) {
 }
 
 TEST(GetNotRepeatingLine2Ds, 0Triangle0Line) {
-	auto Per = Perspective(1.0f, 2.0f);
+	auto per = Perspective(1.0f, 2.0f, -1.0f, 1.0f, -1.0f, 1.0f);
 	auto point3s = Array<Point3, 3>{
 		Point3{0.0f, 1.0f, -1.0f},
 		Point3{1.0f, 2.0f, 0.0f},
 		Point3{0.0f, 3.0f, 0.0f},
 	};
 	auto point4s = point3s.Stream([&](const Point3& p) {
-		return Per * p.ToPoint4();
+		return per * p.ToPoint4();
 	});
 	auto clipTriangles = TriangleNearAndFarClip(point4s);
 	EXPECT_EQ(clipTriangles.Size(), 0);
@@ -299,7 +302,7 @@ TEST(ComputeCenterPoint, Test) {
 }
 
 TEST(ComputeCenterTextureCoordinate, Test) {
-	auto per = Perspective(1.0f, 2.0f);
+	auto per = Perspective(1.0f, 2.0f, -1.0f, 1.0f, -1.0f, 1.0f);
 	auto pointsW = Array<Point3, 3>{
 		{0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 2.0f}, {1.0f, 0.0f, 1.0f}
 	}.Stream([&](Point3 p) {

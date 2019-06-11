@@ -69,7 +69,7 @@ struct Matrix4X4 {
 
 Matrix4X4 Scale(float x, float y, float z);
 Matrix4X4 Move(Vector3 direction);
-Matrix4X4 Perspective(float n, float f);
+Matrix4X4 Perspective(float n, float f, float l, float r, float b, float t);
 Matrix4X4 RotateX(float radian);
 Matrix4X4 RotateY(float radian);
 Matrix4X4 RotateZ(float radian);

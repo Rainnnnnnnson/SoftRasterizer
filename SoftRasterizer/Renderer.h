@@ -48,10 +48,12 @@ private:
 RGBColor ColorToRGBColor(Color c);
 
 /*
+    这里传入的是Point4 中的 x y 生成的point2 
+	在透视矩阵处理后 x y 正负不改变 
     顺时针不消除 逆时针消除
 	消除返回true
 */
-bool BackCulling(Array<Point3, 3> points);
+bool BackCulling(Array<Point2, 3> points);
 
 /*
 	判断剪裁后是否有直线在框中
@@ -299,10 +301,10 @@ inline void Renderer::DrawTriangleByTexture(const vector<Point3>& points,
 								textures[data.textureIndex]);
 		});
 		//背面消除(逆时针消除) 若消除直接进入下一个循环
-		auto point3s = mainPoints.Stream([](const Point4& p) {
-			return p.ToPoint3();
+		auto point2s = mainPoints.Stream([](const Point4& p) {
+			return Point2{p.x, p.y};
 		});
-		if (BackCulling(point3s)) {
+		if (BackCulling(point2s)) {
 			continue;
 		}
 		//远近平面剪裁 最多剪裁出4个三角形
