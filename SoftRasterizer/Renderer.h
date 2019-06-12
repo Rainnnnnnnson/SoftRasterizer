@@ -17,21 +17,18 @@ struct RGBColor {
 	unsigned char b;
 };
 
-struct IndexData {
-	unsigned textureIndex;
-	Array<unsigned, 3> pointIndex;
-	Array<unsigned, 3> textureCoordinateIndex;
-};
 
 /*
 	内存是图片顺序存储的 index = y * width + x
-	但是 GetPixel SetPixel 是上下倒转的
+	Reverse版本是上下倒转的的取
 */
 class RGBImage {
 public:
 	RGBImage(int width, int height);
 	int GetWidth() const;
 	int GetHeight() const;
+	RGBColor ReverseGetPixel(int x, int y) const;
+	void ReverseSetPixel(int x, int y, RGBColor rgb);
 	RGBColor GetPixel(int x, int y) const;
 	void SetPixel(int x, int y, RGBColor rgb);
 private:
@@ -40,6 +37,11 @@ private:
 	vector<RGBColor> rgbs;
 };
 
+struct IndexData {
+	unsigned textureIndex;
+	Array<unsigned, 3> pointIndex;
+	Array<unsigned, 3> textureCoordinateIndex;
+};
 /*
 	将[0,1]映射至[0,255] 
 	小于0 取 0

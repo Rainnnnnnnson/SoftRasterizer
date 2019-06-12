@@ -14,14 +14,24 @@ int RGBImage::GetHeight() const {
 	return height;
 }
 
-RGBColor RGBImage::GetPixel(int x, int y) const {
+RGBColor RGBImage::ReverseGetPixel(int x, int y) const {
 	assert(InPixelXY(x, y, width, height));
 	return rgbs[ReversePixelToIndex(x, y, width, height)];
 }
 
-void RGBImage::SetPixel(int x, int y, RGBColor rgb) {
+void RGBImage::ReverseSetPixel(int x, int y, RGBColor rgb) {
 	assert(InPixelXY(x, y, width, height));
 	rgbs[ReversePixelToIndex(x, y, width, height)] = rgb;
+}
+
+RGBColor RGBImage::GetPixel(int x, int y) const {
+	assert(InPixelXY(x, y, width, height));
+	return rgbs[PixelToIndex(x, y, width)];
+}
+
+void RGBImage::SetPixel(int x, int y, RGBColor rgb) {
+	assert(InPixelXY(x, y, width, height));
+	rgbs[PixelToIndex(x, y, width)] = rgb;
 }
 
 //================================================================================================================
@@ -100,16 +110,14 @@ void DrawLineByMiddlePoint(Array<Point2, 2> points, int width, int height, funct
 		float x = PixelToScreen(pixelX, width);
 		Point2 middlePoint = Point2{x, middleY};
 		//取[0,1)作为例子 表示在直线是否在上方
-		bool pointUpLine = ComputeLineEquation(middlePoint, pointA, pointB) > 0.0f;
+		bool pointUpLine = (addtion * ComputeLineEquation(middlePoint, pointA, pointB)) >= 0.0f;
 		float y = pointUpLine ? middleY - halfPixelHeight : middleY + halfPixelHeight;
 		int pixelY = ScreenToPixel(y, height);
 		func(pixelX, pixelY);
 		//取[0,1)作为例子 中点在直线下方 需要提高中点一个单位
-		if (pointUpLine && (addtion < 0.0f)) {
-			middleY -= GetPixelDelta(height);
-		} else if ((!pointUpLine) && (addtion > 0.0f)) {
-			middleY += GetPixelDelta(height);
-		}
+		if (!pointUpLine) {
+			middleY += addtion * GetPixelDelta(height);
+		} 
 	}
 }
 

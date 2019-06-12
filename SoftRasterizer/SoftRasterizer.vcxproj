@@ -127,6 +127,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Display.cpp" />
     <ClCompile Include="Main.cpp" />
     <ClCompile Include="Math.cpp" />
     <ClCompile Include="Renderer.cpp" />
@@ -134,6 +135,7 @@
   <ItemGroup>
     <ClInclude Include="Array.h" />
     <ClInclude Include="Assertion.h" />
+    <ClInclude Include="Display.h" />
     <ClInclude Include="Math.h" />
     <ClInclude Include="Renderer.h" />
   </ItemGroup>
