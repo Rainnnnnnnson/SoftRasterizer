@@ -1,9 +1,5 @@
 #include<windows.h>
-#include<gdiplus.h>
-#pragma comment (lib,"Gdiplus.lib")
 #include"Display.h"
-
-LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
 int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance,
 					_In_ LPWSTR lpCmdLine, _In_ int nShowCmd) {

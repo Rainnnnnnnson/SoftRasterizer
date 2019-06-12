@@ -58,9 +58,9 @@ void Renderer::Clear() {
 
 RGBImage Renderer::GenerateImage() const {
 	RGBImage image(width, height);
-	for (int i = 0; i < width; i++) {
-		for (int j = 0; j < height; j++) {
-			int index = j * width + i;
+	for (int j = 0; j < height; j++) {
+		for (int i = 0; i < width; i++) {
+			int index = PixelToIndex(i, j, width);
 			auto zBufferColor = zBuffer[index];
 			image.SetPixel(i, j, zBufferColor.second);
 		}
@@ -71,7 +71,7 @@ RGBImage Renderer::GenerateImage() const {
 void Renderer::DrawZBuffer(int x, int y, float z, RGBColor color) {
 	assert(InPixelXY(x, y, width, height));
 	assert(InScreenZ(z));
-	int index = PixelToIndex(x, y, width);
+	int index = ReversePixelToIndex(x, y, width, height);
 	zBuffer[index] = {z, color};
 }
 
@@ -82,7 +82,7 @@ void Renderer::DrawWritePixel(int x, int y) {
 	constexpr float lineDepth = -1.0f;
 	//白色
 	constexpr RGBColor write = {255, 255, 255};
-	int index = PixelToIndex(x, y, width);
+	int index = ReversePixelToIndex(x, y, width, height);
 	zBuffer[index] = {lineDepth, write};
 }
 
@@ -111,7 +111,7 @@ void DrawLineByMiddlePoint(Array<Point2, 2> points, int width, int height, funct
 		Point2 middlePoint = Point2{x, middleY};
 		//取[0,1)作为例子 表示在直线是否在上方
 		bool pointUpLine = (addtion * ComputeLineEquation(middlePoint, pointA, pointB)) >= 0.0f;
-		float y = pointUpLine ? middleY - halfPixelHeight : middleY + halfPixelHeight;
+		float y = pointUpLine ? (middleY - addtion * halfPixelHeight) : (middleY + addtion * halfPixelHeight);
 		int pixelY = ScreenToPixel(y, height);
 		func(pixelX, pixelY);
 		//取[0,1)作为例子 中点在直线下方 需要提高中点一个单位
@@ -124,8 +124,12 @@ void DrawLineByMiddlePoint(Array<Point2, 2> points, int width, int height, funct
 void Renderer::DrawScreenLine(Array<Point2, 2> points) {
 	assert(InScreenXY(points[0]));
 	assert(InScreenXY(points[1]));
+	//这里乘以图片比例主要是因为图片比例会导致k > 1 或者 k < -1的情况 画线不正确
+	//中点算法一次只能上升或者下降一格像素 当K > 1时 只能取K == 1 (K<-1 同理)
+	float y = (points[1].y - points[0].y) * static_cast<float>(height);
+	float x = (points[1].x - points[0].x) * static_cast<float>(width);
 	//斜率
-	float k = (points[1].y - points[0].y) / (points[1].x - points[0].x);
+	float k = y / x;
 	if (k >= -1.0f && k < 1.0f) {
 		DrawLineByMiddlePoint(points, width, height, [&](int x, int y) {
 			DrawWritePixel(x, y);
@@ -134,11 +138,13 @@ void Renderer::DrawScreenLine(Array<Point2, 2> points) {
 		//用x = ky + b当作直线
 		//关于y = x 对称
 		//反转 x 和 y的属性
-		Array<Point2, 2> reverseLine = {points[1], points[0]};
+		auto reversePoints = points.Stream([](Point2 p) {
+			return Point2{p.y, p.x};
+		});
 		int reverseWidth = height;
 		int reverseHeight = width;
-		DrawLineByMiddlePoint(reverseLine, reverseWidth, reverseHeight, [&](int x, int y) {
-			//注意这里也要反转
+		DrawLineByMiddlePoint(reversePoints, reverseWidth, reverseHeight, [&](int x, int y) {
+			//这里也要反转
 			DrawWritePixel(y, x);
 		});
 	} else {

@@ -64,6 +64,11 @@ bool BackCulling(Array<Point2, 3> points);
 bool ScreenLineClip(Array<Point2, 2>& points);
 
 /*
+	用k属于[0,1] 来写 k值的4情况
+*/
+void DrawLineByMiddlePoint(Array<Point2, 2> points, int width, int height, function<void(int, int)> func);
+
+/*
 	判断两直线是否相等
 	点不一定对应
 */
@@ -247,17 +252,14 @@ inline void Renderer::DrawTriangleByWireframe(const vector<Point3>& points,
 											  const vector<Texture>& textures,
 											  const vector<IndexData>& indexDatas,
 											  function<Point4(Point3, Point2, const Texture&)> vertexShader) {
-	assert(!points.empty());
-	assert(!textureCoordinates.empty());
-	assert(!textures.empty());
 	for (auto& data : indexDatas) {
-		assert(data.pointIndex[0] <= points.size());
-		assert(data.pointIndex[1] <= points.size());
-		assert(data.pointIndex[2] <= points.size());
-		assert(data.textureCoordinateIndex[0] <= textureCoordinates.size());
-		assert(data.textureCoordinateIndex[1] <= textureCoordinates.size());
-		assert(data.textureCoordinateIndex[2] <= textureCoordinates.size());
-		assert(data.textureIndex <= textures.size());
+		assert(data.pointIndex[0] < points.size());
+		assert(data.pointIndex[1] < points.size());
+		assert(data.pointIndex[2] < points.size());
+		assert(data.textureCoordinateIndex[0] < textureCoordinates.size());
+		assert(data.textureCoordinateIndex[1] < textureCoordinates.size());
+		assert(data.textureCoordinateIndex[2] < textureCoordinates.size());
+		assert(data.textureIndex < textures.size());
 		//执行顶点着色器后得到点
 		auto point4 = Array<int, 3>{0, 1, 2}.Stream([&](int i) {
 			return vertexShader(points[data.pointIndex[i]],
@@ -285,17 +287,14 @@ inline void Renderer::DrawTriangleByTexture(const vector<Point3>& points,
 											const vector<IndexData>& indexDatas,
 											function<Point4(Point3, Point2, const Texture&)> vertexShader,
 											function<Color(Point4, Point2, const Texture&)> pixelShader) {
-	assert(!points.empty());
-	assert(!textureCoordinates.empty());
-	assert(!textures.empty());
 	for (auto& data : indexDatas) {
-		assert(data.pointIndex[0] <= points.size());
-		assert(data.pointIndex[1] <= points.size());
-		assert(data.pointIndex[2] <= points.size());
-		assert(data.textureCoordinateIndex[0] <= textureCoordinates.size());
-		assert(data.textureCoordinateIndex[1] <= textureCoordinates.size());
-		assert(data.textureCoordinateIndex[2] <= textureCoordinates.size());
-		assert(data.textureIndex <= textures.size());
+		assert(data.pointIndex[0] < points.size());
+		assert(data.pointIndex[1] < points.size());
+		assert(data.pointIndex[2] < points.size());
+		assert(data.textureCoordinateIndex[0] < textureCoordinates.size());
+		assert(data.textureCoordinateIndex[1] < textureCoordinates.size());
+		assert(data.textureCoordinateIndex[2] < textureCoordinates.size());
+		assert(data.textureIndex < textures.size());
 		//执行顶点着色器后得到点
 		auto mainPoints = Array<int, 3>{0, 1, 2}.Stream([&](std::size_t i) {
 			return vertexShader(points[data.pointIndex[i]],
