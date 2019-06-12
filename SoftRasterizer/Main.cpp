@@ -10,11 +10,12 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance,
 	constexpr int width = 800;
 	constexpr int height = 600;
 	Display display(hInstance, nShowCmd, width, height);
+	RGBImage fileImage = display.GetImage(L"../EZ.PNG");
 	display.Update([&]() {
 		RGBImage image(width, height);
-		for (int i = 0; i < 400; i++) {
-			for (int j = 0; j  < 400; j++) {
-				image.SetPixel(i, j, RGBColor{255, 0, 0});
+ 		for (int i = 0; i < fileImage.GetHeight(); i++) {
+			for (int j = 0; j  < fileImage.GetWidth(); j++) {
+				image.SetPixel(i, j, fileImage.GetPixel(i, j));
 			}
 		}
 		return image;
