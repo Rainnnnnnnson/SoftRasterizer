@@ -13,6 +13,9 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "DrawWireframeTriangle", "Dr
 	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "DrawTextureTriangle", "DrawTextureTriangle\DrawTextureTriangle.vcxproj", "{71EAAE9E-49D7-444D-998E-560A7FE9074A}"
+	ProjectSection(ProjectDependencies) = postProject
+		{7A49E6E1-2882-4FBD-896E-BAFD5B0DFCF3} = {7A49E6E1-2882-4FBD-896E-BAFD5B0DFCF3}
+	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "DrawColorfulTriangle", "DrawColorfulTriangle\DrawColorfulTriangle.vcxproj", "{1CEC28FE-A24F-4429-82F8-646A56E223E1}"
 EndProject

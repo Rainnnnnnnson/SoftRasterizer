@@ -60,10 +60,10 @@ Color RGBImage::BilinearFiltering(Point2 p) const {
 	// A B
 	// C D
 	//ËÄ¸öÏñËØ
-	Color A = RGBColorToColor(GetPixel(u0i, v0i)) * uLeft * vUp;
-	Color B = RGBColorToColor(GetPixel(u1i, v0i)) * uRight * vUp;
-	Color C = RGBColorToColor(GetPixel(u0i, v1i)) * uLeft * vDown;
-	Color D = RGBColorToColor(GetPixel(u1i, v1i)) * uRight * vDown;
+	Color A = RGBColorToColor(ReverseGetPixel(u0i, v0i)) * uLeft * vUp;
+	Color B = RGBColorToColor(ReverseGetPixel(u1i, v0i)) * uRight * vUp;
+	Color C = RGBColorToColor(ReverseGetPixel(u0i, v1i)) * uLeft * vDown;
+	Color D = RGBColorToColor(ReverseGetPixel(u1i, v1i)) * uRight * vDown;
 	return A + B + C + D;
 }
 
