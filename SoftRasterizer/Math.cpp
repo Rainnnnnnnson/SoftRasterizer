@@ -45,6 +45,18 @@ bool Point4::operator==(const Point4& p) const {
 	return (x == p.x) && (y == p.y) && (z == p.z) && (w == p.w);
 }
 
+Point4 Point4::operator+(const Point4& p) const {
+	return Point4{x + p.x, y + p.y, z + p.z, w + p.w};
+}
+
+Point4 Point4::operator*(float f) const {
+	return Point4{x * f, y * f, z * f, w * f};
+}
+
+Point2 Point4::GetPoint2() const {
+	return Point2{x, y};
+}
+
 Point3 Point4::ToPoint3() const {
 	return Point3{x / w, y / w, z / w};
 }
@@ -179,3 +191,10 @@ Point4 Matrix4X4::operator*(const Point4& p) const {
 	return Point4{x, y, z, w};
 }
 
+Color Color::operator+(const Color& c) const {
+	return Color{r + c.r, g + c.g, b + c.b};
+}
+
+Color Color::operator*(float f) const {
+	return Color{r * f, g * f, b * f};
+}

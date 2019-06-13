@@ -1,10 +1,12 @@
 #pragma once
 #include"Assertion.h"
 #include<array>
+
 //固定容量的数组
 //防止三角形代码重复
 //使用Stream增加代码可读性
-template<typename Type, std::size_t size>
+//只有容量大于等于2才需要用到这个容器
+template<typename Type, std::size_t size, typename = std::enable_if_t<(size >= 2U)>>
 class Array {
 public:
 	Array() : elements{} {}
@@ -19,14 +21,20 @@ public:
 	//通过lambda得到下一个类型的数组
 	template<typename Function, typename Return = std::invoke_result_t<Function, Type>>
 	Array<Return, size> Stream(Function func) const {
-		Array<Return, size> returnArray{};
-		std::size_t i = 0;
-		for (Return& returnElement : returnArray) {
-			returnElement = func(elements[i]);
-			i += 1;
+		Array<Return, size> returnArray;
+		for (std::size_t i = 0; i < size; i++) {
+			returnArray[i] = func(elements[i]);
 		}
 		return returnArray;
 	};
+
+	Type Sum() const {
+		Type result = elements[0];
+		for (int i = 1; i < size; i++) {
+			result = result + elements[i];
+		}
+		return result;
+	}
 
 	Type* begin() {
 		return &elements[0];
@@ -54,6 +62,15 @@ public:
 private:
 	std::array<Type, size> elements;
 };
+
+template<std::size_t size>
+Array<std::size_t, size> ArrayIndex() {
+	Array<std::size_t, size> result;
+	for (std::size_t i = 0; i < size; i++) {
+		result[i] = i;
+	}
+	return result;
+}
 
 //被设定一个最大容量的容器放在栈上面
 //用于存储小容量但是不确定个数的时候

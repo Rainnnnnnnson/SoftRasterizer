@@ -34,6 +34,39 @@ void RGBImage::SetPixel(int x, int y, RGBColor rgb) {
 	rgbs[PixelToIndex(x, y, width)] = rgb;
 }
 
+Color RGBImage::BilinearFiltering(Point2 p) const {
+	assert(p.x >= 0.0f);
+	assert(p.y >= 0.0f);
+	assert(p.x <= 1.0f);
+	assert(p.y <= 1.0f);
+	float u = p.x * static_cast<float>(width) - 0.5f;
+	float v = p.y * static_cast<float>(height) - 0.5f;
+	//像素坐标
+	float u0 = floor(u);
+	float u1 = u0 + 1.0f;
+	float v0 = floor(v);
+	float v1 = v0 + 1.0f;
+	//坐标系数
+	float uRight = u1 - u;
+	float uLeft = u - u0;
+	float vUp = v1 - v;
+	float vDown = v - v0;
+	//变成整数取数组
+	//超过边界取边界
+	int u0i = std::clamp(static_cast<int>(u0), 0, width - 1);
+	int u1i = std::clamp(static_cast<int>(u1), 0, width - 1);
+	int v0i = std::clamp(static_cast<int>(v0), 0, height - 1);
+	int v1i = std::clamp(static_cast<int>(v1), 0, height - 1);
+	// A B
+	// C D
+	//四个像素
+	Color A = RGBColorToColor(GetPixel(u0i, v0i)) * uLeft * vUp;
+	Color B = RGBColorToColor(GetPixel(u1i, v0i)) * uRight * vUp;
+	Color C = RGBColorToColor(GetPixel(u0i, v1i)) * uLeft * vDown;
+	Color D = RGBColorToColor(GetPixel(u1i, v1i)) * uRight * vDown;
+	return A + B + C + D;
+}
+
 //================================================================================================================
 
 //在清空状态深度储存为2.0f
@@ -66,6 +99,47 @@ RGBImage Renderer::GenerateImage() const {
 		}
 	}
 	return image;
+}
+
+void Renderer::DrawTriangleByColor(const vector<Point3>& points,
+								   const vector<Color>& colors,
+								   const vector<ColorIndexData> indexDatas,
+								   function<Point4(Point3)> vertexShader) {
+	for (auto& data : indexDatas) {
+		assert(data.pointIndex[0] < points.size());
+		assert(data.pointIndex[1] < points.size());
+		assert(data.pointIndex[2] < points.size());
+		assert(data.colorIndex[0] < colors.size());
+		assert(data.colorIndex[1] < colors.size());
+		assert(data.colorIndex[2] < colors.size());
+		//执行顶点着色器后得到点
+		auto mainPoint4s = Array<int, 3>{0, 1, 2}.Stream([&](std::size_t i) {
+			return vertexShader(points[data.pointIndex[i]]);
+		});
+		auto mainColors = Array<int, 3>{0, 1, 2}.Stream([&](std::size_t i) {
+			return colors[data.colorIndex[i]];
+		});
+
+		//背面消除(逆时针消除) 若消除直接进入下一个循环
+		auto point2s = mainPoint4s.Stream([](const Point4& point4) {
+			return point4.GetPoint2();
+		});
+		if (BackCulling(point2s)) {
+			continue;
+		}
+		//远近平面剪裁 最多剪裁出4个三角形
+		MaxCapacityArray<Array<Point4, 3>, 4> trianglePoints = TriangleNearAndFarClip(mainPoint4s);
+		for (auto& points : trianglePoints) {
+			HandleTriangle(points, [&](int x, int y, Array<float, 3> coefficients) {
+				Point4 point = ComputeCenterPoint(coefficients, mainPoint4s);
+				Color color = ComputerCenterColor(coefficients, mainColors);
+				//限制浮点数精度问题 限制z 到[0,1]
+				float z = std::clamp(point.z / point.w, 0.0f, 1.0f);
+				DrawZBuffer(x, y, z, ColorToRGBColor(color));
+			});
+		}
+
+	}
 }
 
 void Renderer::DrawZBuffer(int x, int y, float z, RGBColor color) {
@@ -121,7 +195,7 @@ void DrawLineByMiddlePoint(Array<Point2, 2> points, int width, int height, funct
 	}
 }
 
-void Renderer::DrawScreenLine(Array<Point2, 2> points) {
+void Renderer::HandleLine(Array<Point2, 2> points) {
 	assert(InScreenXY(points[0]));
 	assert(InScreenXY(points[1]));
 	//这里乘以图片比例主要是因为图片比例会导致k > 1 或者 k < -1的情况 画线不正确
@@ -153,11 +227,12 @@ void Renderer::DrawScreenLine(Array<Point2, 2> points) {
 	}
 }
 
-void Renderer::DrawTriangle(const Array<Point4, 3> & points, 
-							const Array<Point2, 3> & coordinate, 
-							const Array<Point4, 3> & needComputePoint, 
-							function<Color(Point4, Point2)> pixelShader) {
-//获取三角形中顶点最大最小的x y值
+void Renderer::HandleTriangle(Array<Point4, 3> points, 
+							  function<void(int x, int y, Array<float, 3>coefficent)> howToUseCoefficient) {
+	assert(points[0].w != 0.0f);
+	assert(points[1].w != 0.0f);
+	assert(points[2].w != 0.0f);
+	//获取三角形中顶点最大最小的x y值
 	//用于计算需要绘制的边框
 	auto xValue = points.Stream([](const Point4& p) {
 		return p.x;
@@ -190,24 +265,7 @@ void Renderer::DrawTriangle(const Array<Point4, 3> & points,
 				return f > 0.0f;
 			});
 			if (inTriangle) {
-				//使用重心系数计算出像素位置对应的齐次坐标点
-				Point4 pixelPoint = ComputeCenterPoint(coefficient, points);
-				//所有点的w坐标
-				auto pointsW = points.Stream([](const Point4& p) {
-					return p.w;
-				});
-				//矫正后的纹理坐标
-				Point2 textureCoordinate = ComputeCenterTextureCoordinate(
-					coefficient, coordinate, pointsW
-				);
-				//写入zBuffer
-				float depth = pixelPoint.z / pixelPoint.w;
-				//浮点数精度问题 需要限制到[0,1]
-				depth = std::clamp(depth, 0.0f, 1.0f);
-				//执行像素着色器
-				Color color = pixelShader(pixelPoint, textureCoordinate);
-				//绘制进入图像
-				DrawZBuffer(xIndex, yIndex, depth, ColorToRGBColor(color));
+				howToUseCoefficient(xIndex, yIndex, coefficient);
 			}
 		}
 	}
@@ -229,6 +287,18 @@ RGBColor ColorToRGBColor(Color c) {
 		ColorFloatToByte(c.r),
 		ColorFloatToByte(c.g),
 		ColorFloatToByte(c.b),
+	};
+}
+
+float ByteToColorFloat(unsigned char b) {
+	return static_cast<float>(b) / 255.0f;
+}
+
+Color RGBColorToColor(RGBColor c) {
+	return Color{
+		ByteToColorFloat(c.r),
+		ByteToColorFloat(c.g),
+		ByteToColorFloat(c.b),
 	};
 }
 
@@ -463,37 +533,42 @@ Array<float, 3> ComputeCenterCoefficient(Point2 point, Array<Point2, 3> points) 
 	float gamma = ComputeLineEquation(point, points[0], points[1]) / fc;
 	return Array<float, 3>{alpha, beta, gamma};
 }
+Color ComputerCenterColor(Array<float, 3> coefficients, Array<Color, 3> colors) {
+	return ArrayIndex<3>().Stream([&](int i) {
+		return colors[i] * coefficients[i];
+	}).Sum();
+}
 Point4 ComputeCenterPoint(Array<float, 3> coefficients, Array<Point4, 3> points) {
-	return Point4{
-		coefficients[0] * points[0].x + coefficients[1] * points[1].x + coefficients[2] * points[2].x,
-		coefficients[0] * points[0].y + coefficients[1] * points[1].y + coefficients[2] * points[2].y,
-		coefficients[0] * points[0].z + coefficients[1] * points[1].z + coefficients[2] * points[2].z,
-		coefficients[0] * points[0].w + coefficients[1] * points[1].w + coefficients[2] * points[2].w
-	};
+	return ArrayIndex<3>().Stream([&](int i) {
+		return points[i] * coefficients[i];
+	}).Sum();
 }
 Point2 ComputeCenterTextureCoordinate(Array<float, 3> coefficients,
 									  Array<Point2, 3> textureCoordinates,
 									  Array<float, 3> pointW) {
-	float screenU = (coefficients[0] * (textureCoordinates[0].x / pointW[0]))
-		+ (coefficients[1] * (textureCoordinates[1].x / pointW[1]))
-		+ (coefficients[2] * (textureCoordinates[2].x / pointW[2]));
-	float screenV = (coefficients[0] * (textureCoordinates[0].y / pointW[0]))
-		+ (coefficients[1] * (textureCoordinates[1].y / pointW[1]))
-		+ (coefficients[2] * (textureCoordinates[2].y / pointW[2]));
-	constexpr float one = 1.0f;
-	float screenOne = coefficients[0] * (1.0f / pointW[0])
-		+ coefficients[1] * (1.0f / pointW[1])
-		+ coefficients[2] * (1.0f / pointW[2]);
+	float screenU = ArrayIndex<3>().Stream([&](int i) {
+		return coefficients[i] * (textureCoordinates[i].x / pointW[i]);
+	}).Sum();
+	float screenV = ArrayIndex<3>().Stream([&](int i) {
+		return coefficients[i] * (textureCoordinates[i].y / pointW[i]);
+	}).Sum();
+	float screenOne = ArrayIndex<3>().Stream([&](int i) {
+		constexpr float one = 1.0f;
+		return coefficients[i] * (one / pointW[i]);
+	}).Sum();
 	return Point2{screenU / screenOne, screenV / screenOne};
 }
 
 float GetPixelDelta(int pixelCount) {
-	return 2.0f / static_cast<float>(pixelCount);
+	constexpr float screenLength = 1.0f - (-1.0f);
+	return screenLength / static_cast<float>(pixelCount);
 }
 
 float PixelToScreen(int pixel, int pixelCount) {
 	float delta = GetPixelDelta(pixelCount);
-	return static_cast<float>(pixel) * delta + (-1.0f + 0.5f * delta);
+	float start = -1.0f + 0.5f * delta;
+	float addtion = static_cast<float>(pixel) * delta;
+	return start + addtion;
 }
 
 int ScreenToPixel(float screen, int pixelCount) {

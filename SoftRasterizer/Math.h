@@ -30,8 +30,13 @@ struct Point3 {
 
 struct Point4 {
 	float x, y, z, w;
-	//(x/w, y/w, z/w)
 	bool operator==(const Point4& p) const;
+	//主要用于重心计算 并且不存在Vector4
+	Point4 operator+(const Point4& p) const;
+	Point4 operator*(float f) const;
+	//(x, y)
+	Point2 GetPoint2() const;
+	//(x/w, y/w, z/w)
 	Point3 ToPoint3() const;
 };
 
@@ -78,6 +83,7 @@ struct Color {
 	float r, g, b;
 	Color operator+(const Color& c) const;
 	Color operator-(const Color& c) const;
+	Color operator*(float f) const;
 	Color operator*(const Color& c) const;
 	Color operator/(const Color& c) const;
 };
