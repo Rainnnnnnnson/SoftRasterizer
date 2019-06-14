@@ -114,6 +114,7 @@ TEST(Line2DClip, Test) {
 }
 
 TEST(ComputePlanePoint, NearPlane) {
+	Vector4 near{0.0f, 0.0f, -1.0f, 0.0f};
 	auto per = Perspective(1.0f, 2.0f, -1.0f, 1.0f, -1.0f, 1.0f);
 	Point3 A{-2.0f, 0.0f, 0.0f};
 	Point3 B{2.0f, 0.0f, 2.0f};
@@ -122,13 +123,14 @@ TEST(ComputePlanePoint, NearPlane) {
 	Point4 B4 = per * B.ToPoint4();
 	Point4 C4 = per * C.ToPoint4();
 	Point3 D1 = C4.ToPoint3();
-	Point3 D2 = ComputePlanePoint(-1.0f, 0.0f, A4, B4).ToPoint3();
+	Point3 D2 = ComputePlanePoint(near, {A4, B4}).ToPoint3();
 	EXPECT_EQ(D1.x, D2.x);
 	EXPECT_EQ(D1.y, D2.y);
 	EXPECT_EQ(D1.z, D2.z);
 }
 
 TEST(ComputePlanePoint, FarPlane) {
+	Vector4 far{0.0f, 0.0f, 1.0f, -1.0f};
 	auto per = Perspective(1.0f, 2.0f, -1.0f, 1.0f, -1.0f, 1.0f);
 	Point3 A{0.0f, 1.0f, -1.0f};
 	Point3 B{0.0f, 1.0f, 5.0f};
@@ -137,7 +139,7 @@ TEST(ComputePlanePoint, FarPlane) {
 	Point4 B4 = per * B.ToPoint4();
 	Point4 C4 = per * C.ToPoint4();
 	Point3 D1 = C4.ToPoint3();
-	Point3 D2 = ComputePlanePoint(1.0f, -1.0f, A4, B4).ToPoint3();
+	Point3 D2 = ComputePlanePoint(far, {A4, B4}).ToPoint3();
 	EXPECT_EQ(D1.x, D2.x);
 	EXPECT_EQ(D1.y, D2.y);
 	EXPECT_EQ(D1.z, D2.z);
@@ -154,7 +156,8 @@ TEST(TriangleClip, NotClipTest) {
 	auto point4s = point3s.Stream([&](const Point3& p) {
 		return per * p.ToPoint4();
 	});
-	auto clipTriangles = TriangleClip(-1.0f, 0.0f, point4s);
+	Vector4 near{0.0f, 0.0f, -1.0f, 0.0f};
+	auto clipTriangles = TriangleClip(near, point4s);
 	EXPECT_EQ(clipTriangles.Size(), 1);
 	auto it = clipTriangles.begin();
 	EXPECT_EQ((*it)[0], point4s[0]);
@@ -174,7 +177,8 @@ TEST(TriangleClip, OnePointOut) {
 	auto point4s = point3s.Stream([&](const Point3& p) {
 		return per * p.ToPoint4();
 	});
-	auto clipTriangles = TriangleClip(-1.0f, 0.0f, point4s);
+	Vector4 near{0.0f, 0.0f, -1.0f, 0.0f};
+	auto clipTriangles = TriangleClip(near, point4s);
 	EXPECT_EQ(clipTriangles.Size(), 2);
 	auto it = clipTriangles.begin();
 	EXPECT_EQ((*it)[0], point4s[0]);
@@ -198,7 +202,8 @@ TEST(TriangleClip, TwoPointOut) {
 	});
 	auto nearLeft = per * Point3{0.0f, 0.0f, 1.0f}.ToPoint4();
 	auto nearRight = per * Point3{0.5f, 0.0f, 1.0f}.ToPoint4();
-	auto clipTriangles = TriangleClip(-1.0f, 0.0f, point4s);
+	Vector4 near{0.0f, 0.0f, -1.0f, 0.0f};
+	auto clipTriangles = TriangleClip(near, point4s);
 	auto it = clipTriangles.begin();
 	EXPECT_EQ((*it)[0], point4s[0]);
 	EXPECT_EQ((*it)[1], nearLeft);

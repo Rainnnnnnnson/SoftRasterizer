@@ -27,6 +27,22 @@ public:
 		}
 		return returnArray;
 	};
+	
+	/*
+		循环获取
+		例如 数组有三个数字 0 1 2
+		调用分别得到 func(0,1) func(1,2) func(2,0) 
+	*/
+	template<typename Function, typename Return = std::invoke_result_t<Function, Type, Type>>
+	Array<Return, size> Circle(Function func) const {
+		Array<Return, size> returnArray;
+		std::size_t last = size - 1;
+		for (std::size_t i = 0; i < last; i++) {
+			returnArray[i] = func(elements[i], elements[i + 1]);
+		}
+		returnArray[last] = func(elements[last], elements[0]);
+		return returnArray;
+	}
 
 	Type Sum() const {
 		Type result = elements[0];
@@ -75,12 +91,12 @@ Array<std::size_t, size> ArrayIndex() {
 //被设定一个最大容量的容器放在栈上面
 //用于存储小容量但是不确定个数的时候
 //在剪裁的时候使用
-template<typename Type,std::size_t capacity>
+template<typename Type,std::size_t capacity, typename = std::enable_if_t<(capacity >= 2U)>>
 class MaxCapacityArray {
 public:
 	MaxCapacityArray() : elements{}, size(0) {}
 	void Push(const Type& element) {
-		assert(size != capacity);
+		assert(size < capacity);
 		elements[size] = element;
 		size += 1;
 	}

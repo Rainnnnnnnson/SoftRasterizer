@@ -33,6 +33,10 @@ Point3 Point3::operator+(const Vector3& v) const {
 	return Point3{x + v.x, y + v.y, z + v.z};
 }
 
+Vector3 Point3::GetVector3FormOrigin() const {
+	return {x, y, z};
+}
+
 Point2 Point3::GetPoint2() const {
 	return Point2{x, y};
 }
@@ -51,6 +55,18 @@ Point4 Point4::operator+(const Point4& p) const {
 
 Point4 Point4::operator*(float f) const {
 	return Point4{x * f, y * f, z * f, w * f};
+}
+
+Vector4 Point4::GetVector4FormOrigin() const {
+	return {x, y, z, w};
+}
+
+Vector4 Point4::operator-(const Point4& p) const {
+	return Vector4{x - p.x, y - p.y, z - p.z, w - p.w};
+}
+
+Point4 Point4::operator+(const Vector4& v) const {
+	return Point4{x + v.x, y + v.y, z + v.z, w + v.w};
 }
 
 Point2 Point4::GetPoint2() const {
@@ -83,6 +99,14 @@ float Matrix3X3::Determinant() const {
 	return f[0][0] * f[1][1] * f[2][2] - f[0][0] * f[1][2] * f[2][1]
 		+ f[0][1] * f[1][2] * f[2][0] - f[0][1] * f[1][0] * f[2][2]
 		+ f[0][2] * f[1][0] * f[2][1] - f[0][2] * f[1][1] * f[2][0];
+}
+
+Matrix3X3 Matrix4X4::GetMatrix3X3() const {
+	return Matrix3X3{
+		f[0][0], f[0][1], f[0][2],
+		f[1][0], f[1][1], f[1][2],
+		f[2][0], f[2][1], f[2][2]
+	};
 }
 
 Matrix4X4 Matrix4X4::Inverse() const {
@@ -197,4 +221,12 @@ Color Color::operator+(const Color& c) const {
 
 Color Color::operator*(float f) const {
 	return Color{r * f, g * f, b * f};
+}
+
+float Vector4::operator*(const Vector4& v) const {
+	return x * v.x + y * v.y + z * v.z + w * v.w;
+}
+
+Vector4 Vector4::operator*(float f) const {
+	return {x * f, y * f, z * f, w * f};
 }

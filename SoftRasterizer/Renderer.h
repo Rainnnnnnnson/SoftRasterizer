@@ -1,22 +1,24 @@
 #pragma once
-#pragma once
 #include<vector>
-#include<array>
 #include<functional>
 #include<algorithm>
 #include"Array.h"
 #include"Assertion.h"
 #include"Math.h"
-using std::array;
 using std::vector;
 using std::function;
+
+struct RGBColor;
+class RGBImage;
+struct IndexData;
+struct ColorIndexData;
+class Renderer;
 
 struct RGBColor {
 	unsigned char r;
 	unsigned char g;
 	unsigned char b;
 };
-
 
 /*
 	int   获取坐标使用[0, width -1] * [0, height - 1]
@@ -81,18 +83,9 @@ Color RGBColorToColor(RGBColor c);
 bool BackCulling(Array<Point2, 3> points);
 
 /*
-	线框模式 和 纹理模式 可以同时使用这个方法
 	远近平面两次剪裁后最多得到4个三角形
 */
 MaxCapacityArray<Array<Point4, 3>, 4> TriangleNearAndFarClip(const Array<Point4, 3> & points);
-
-/*
-	超平面剪裁 Ax + By + Cz + Dw = 0 
-	近平面 C = -1     D =  0
-	远平面 C =  1     D = -1
-	一个平面剪裁最多得到两个三角形
-*/
-MaxCapacityArray<Array<Point4, 3>, 2> TriangleClip(float C, float D, const Array<Point4, 3>& points);
 
 /*
 	将三角形变成不重复的Line2D
@@ -119,6 +112,9 @@ public:
 	*/
 	RGBImage GenerateImage() const;
 
+	/*
+		画彩色三角形
+	*/
 	void DrawTriangleByColor(const vector<Point3>& points,
 							 const vector<Color>& colors,
 							 const vector<ColorIndexData> indexs,
@@ -168,7 +164,7 @@ private:
 	void HandleLine(Array<Point2, 2> line);
 	//画三角形像素 lambda 区分纹理还是颜色
 	void HandleTriangle(Array<Point4, 3> points,
-						function<void(int x, int y, Array<float, 3> coefficent)> howToUseCoefficient);
+						function<void(int, int, Array<float, 3>)> howToUseCoefficient);
 	//这个用于绘制纹理三角形来画像素的
 	void DrawZBuffer(int x, int y, float z, RGBColor color);
 	//这个用于绘制白色直线覆盖在最前面的点
@@ -186,91 +182,15 @@ private:
 	vector<std::pair<float, RGBColor>> zBuffer;
 };
 
-template<typename Texture>
-inline void Renderer::DrawTriangleByWireframe(const vector<Point3>& points,
-											  const vector<Point2>& textureCoordinates,
-											  const vector<Texture>& textures,
-											  const vector<IndexData>& indexDatas,
-											  function<Point4(Point3, Point2, const Texture&)> vertexShader) {
-	for (auto& data : indexDatas) {
-		assert(data.pointIndex[0] < points.size());
-		assert(data.pointIndex[1] < points.size());
-		assert(data.pointIndex[2] < points.size());
-		assert(data.textureCoordinateIndex[0] < textureCoordinates.size());
-		assert(data.textureCoordinateIndex[1] < textureCoordinates.size());
-		assert(data.textureCoordinateIndex[2] < textureCoordinates.size());
-		assert(data.textureIndex < textures.size());
-		//执行顶点着色器后得到点
-		auto point4 = Array<int, 3>{0, 1, 2}.Stream([&](int i) {
-			return vertexShader(points[data.pointIndex[i]],
-								textureCoordinates[data.textureCoordinateIndex[i]], 
-								textures[data.textureIndex]);
-		});
-		//线框模式下不进行背面消除 显示全部线段
-		//剪裁后最多得到4个三角形
-		auto triangles = TriangleNearAndFarClip(point4);
-		//获取不重复线段
-		auto screenLines = GetNotRepeatingScreenLines(triangles);
-		//绘制线段
-		for (auto& screenLine : screenLines) {
-			if (ScreenLineClip(screenLine)) {
-				HandleLine(screenLine);
-			}
-		}
-	}
-}
-
-template<typename Texture>
-inline void Renderer::DrawTriangleByTexture(const vector<Point3>& points,
-											const vector<Point2>& textureCoordinates,
-											const vector<Texture>& textures,
-											const vector<IndexData>& indexDatas,
-											function<Point4(Point3, Point2, const Texture&)> vertexShader,
-											function<Color(Point4, Point2, const Texture&)> pixelShader) {
-	for (auto& data : indexDatas) {
-		assert(data.pointIndex[0] < points.size());
-		assert(data.pointIndex[1] < points.size());
-		assert(data.pointIndex[2] < points.size());
-		assert(data.textureCoordinateIndex[0] < textureCoordinates.size());
-		assert(data.textureCoordinateIndex[1] < textureCoordinates.size());
-		assert(data.textureCoordinateIndex[2] < textureCoordinates.size());
-		assert(data.textureIndex < textures.size());
-		//执行顶点着色器后得到点
-		const auto& texture = textures[data.textureIndex];
-		auto mainPoints = ArrayIndex<3>().Stream([&](int i) {
-			return vertexShader(points[data.pointIndex[i]],
-								textureCoordinates[data.textureCoordinateIndex[i]],
-								texture);
-		});
-		auto mainTextureCoodinates = ArrayIndex<3>().Stream([&](int i) {
-			return textureCoordinates[data.textureCoordinateIndex[i]];
-		});
-		//背面消除(逆时针消除) 若消除直接进入下一个循环
-		auto point2s = mainPoints.Stream([](const Point4& p) {
-			return p.GetPoint2();
-		});
-		if (BackCulling(point2s)) {
-			continue;
-		}
-		auto mainPointsW = mainPoints.Stream([](const Point4& p) {
-			return p.w;
-		});
-		//远近平面剪裁 最多剪裁出4个三角形
-		auto trianglePoints = TriangleNearAndFarClip(mainPoints);
-		//得到纹理坐标
-		for (auto& trianglePoint : trianglePoints) {
-			//光栅化阶段
-			HandleTriangle(mainPoints, [&](int x, int y, Array<float, 3> coefficent) {
-				Point4 point = ComputeCenterPoint(coefficent, mainPoints);
-				Point2 textureCoodinate = ComputeCenterTextureCoordinate(coefficent, mainTextureCoodinates, mainPointsW);
-				Color color = pixelShader(point, textureCoodinate, texture);
-				float depth = std::clamp(point.z / point.w, 0.0f, 1.0f);
-				DrawZBuffer(x, y, depth, ColorToRGBColor(color));
-			});
-		}
-	}
-}
-
+/*
+	超平面剪裁 Ax + By + Cz + Dw = 0
+	vetctor(A,B,C,D)
+	近平面 -z + nw = 0
+	远平面  z - fw = 0
+	左右上下屏幕可以用类似的方法剪裁 这里不用
+	一个平面剪裁最多得到两个三角形
+*/
+MaxCapacityArray<Array<Point4, 3>, 2> TriangleClip(Vector4 vector, const Array<Point4, 3> & points);
 
 /*
 	判断剪裁后是否有直线在框中
@@ -287,7 +207,7 @@ bool ScreenLineEqual(Array<Point2, 2> pointsA, Array<Point2, 2> pointsB);
 /*
 	计算超平面上的点
 */
-Point4 ComputePlanePoint(float C, float D, Point4 point0, Point4 point1);
+Point4 ComputePlanePoint(Vector4 vector, Array<Point4, 2> points);
 
 /*
 	计算重心系数
@@ -303,6 +223,7 @@ Color ComputerCenterColor(Array<float, 3> coefficients, Array<Color, 3> colors);
 	重心计算顶点
 */
 Point4 ComputeCenterPoint(Array<float, 3> coefficients, Array<Point4, 3> points);
+
 /*
 	重心计算纹理坐标
 */
@@ -356,3 +277,89 @@ int PixelToIndex(int x, int y, int width);
 	返回值 是从左上角计算的
 */
 int ReversePixelToIndex(int x, int y, int width, int height);
+
+
+template<typename Texture>
+inline void Renderer::DrawTriangleByWireframe(const vector<Point3>& points,
+											  const vector<Point2>& textureCoordinates,
+											  const vector<Texture>& textures,
+											  const vector<IndexData>& indexDatas,
+											  function<Point4(Point3, Point2, const Texture&)> vertexShader) {
+	for (auto& data : indexDatas) {
+		assert(std::all_of(data.pointIndex.begin(), data.pointIndex.end(), [&](unsigned i) {
+			return i < points.size();
+		}));
+		assert(std::all_of(data.textureCoordinateIndex.begin(), data.textureCoordinateIndex.end(), [&](unsigned i) {
+			return i < points.size();
+		}));
+		assert(data.textureIndex < textures.size());
+		//执行顶点着色器后得到点
+		auto point4 = Array<int, 3>{0, 1, 2}.Stream([&](int i) {
+			return vertexShader(points[data.pointIndex[i]],
+								textureCoordinates[data.textureCoordinateIndex[i]],
+								textures[data.textureIndex]);
+		});
+		//线框模式下不进行背面消除 显示全部线段
+		//剪裁后最多得到4个三角形
+		auto triangles = TriangleNearAndFarClip(point4);
+		//获取不重复线段
+		auto screenLines = GetNotRepeatingScreenLines(triangles);
+		//绘制线段
+		for (auto& screenLine : screenLines) {
+			if (ScreenLineClip(screenLine)) {
+				HandleLine(screenLine);
+			}
+		}
+	}
+}
+
+template<typename Texture>
+inline void Renderer::DrawTriangleByTexture(const vector<Point3>& points,
+											const vector<Point2>& textureCoordinates,
+											const vector<Texture>& textures,
+											const vector<IndexData>& indexDatas,
+											function<Point4(Point3, Point2, const Texture&)> vertexShader,
+											function<Color(Point4, Point2, const Texture&)> pixelShader) {
+	for (auto& data : indexDatas) {
+		assert(std::all_of(data.pointIndex.begin(), data.pointIndex.end(), [&](unsigned i) {
+			return i < points.size();
+		}));
+		assert(std::all_of(data.textureCoordinateIndex.begin(), data.textureCoordinateIndex.end(), [&](unsigned i) {
+			return i < points.size();
+		}));
+		assert(data.textureIndex < textures.size());
+		//执行顶点着色器后得到点
+		const auto& texture = textures[data.textureIndex];
+		auto mainPoints = ArrayIndex<3>().Stream([&](int i) {
+			return vertexShader(points[data.pointIndex[i]],
+								textureCoordinates[data.textureCoordinateIndex[i]],
+								texture);
+		});
+		auto mainTextureCoodinates = ArrayIndex<3>().Stream([&](int i) {
+			return textureCoordinates[data.textureCoordinateIndex[i]];
+		});
+		//背面消除(逆时针消除) 若消除直接进入下一个循环
+		auto point2s = mainPoints.Stream([](const Point4& p) {
+			return p.GetPoint2();
+		});
+		if (BackCulling(point2s)) {
+			continue;
+		}
+		auto mainPointsW = mainPoints.Stream([](const Point4& p) {
+			return p.w;
+		});
+		//远近平面剪裁 最多剪裁出4个三角形
+		auto trianglePoints = TriangleNearAndFarClip(mainPoints);
+		//得到纹理坐标
+		for (auto& trianglePoint : trianglePoints) {
+			//光栅化阶段
+			HandleTriangle(mainPoints, [&](int x, int y, Array<float, 3> coefficent) {
+				Point4 point = ComputeCenterPoint(coefficent, mainPoints);
+				Point2 textureCoodinate = ComputeCenterTextureCoordinate(coefficent, mainTextureCoodinates, mainPointsW);
+				Color color = pixelShader(point, textureCoodinate, texture);
+				float depth = std::clamp(point.z / point.w, 0.0f, 1.0f);
+				DrawZBuffer(x, y, depth, ColorToRGBColor(color));
+			});
+		}
+	}
+}

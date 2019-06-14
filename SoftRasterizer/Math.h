@@ -4,6 +4,7 @@ struct Point2;
 struct Point3;
 struct Point4;
 struct Vector3;
+struct Vector4;
 struct Matrix3X3;
 struct Matrix4X4;
 struct Color;
@@ -22,6 +23,8 @@ struct Point3 {
 	float x, y, z;
 	Vector3 operator-(const Point3& p) const;
 	Point3 operator+(const Vector3& v) const;
+	//获取变成从 原点开始的向量 这里内存不变
+	Vector3 GetVector3FormOrigin() const;
 	//(x, y)
 	Point2 GetPoint2() const;
 	//(x, y, z, 1)
@@ -31,9 +34,13 @@ struct Point3 {
 struct Point4 {
 	float x, y, z, w;
 	bool operator==(const Point4& p) const;
-	//主要用于重心计算 并且不存在Vector4
+	//主要用于重心计算
 	Point4 operator+(const Point4& p) const;
 	Point4 operator*(float f) const;
+	//获取变成从 原点开始的向量 这里内存不变
+	Vector4 GetVector4FormOrigin() const;
+	Vector4 operator-(const Point4& p) const;
+	Point4 operator+(const Vector4& v) const;
 	//(x, y)
 	Point2 GetPoint2() const;
 	//(x/w, y/w, z/w)
@@ -49,6 +56,12 @@ struct Vector3 {
 	Vector3 Cross(const Vector3& v) const;
 	Vector3 Normalize() const;
 	Vector3 Negative() const;
+};
+
+struct Vector4 {
+	float x, y, z, w;
+	float operator*(const Vector4& v) const;
+	Vector4 operator*(float f) const;
 };
 
 struct Matrix3X3 {

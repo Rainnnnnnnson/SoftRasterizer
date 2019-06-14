@@ -106,12 +106,12 @@ void Renderer::DrawTriangleByColor(const vector<Point3>& points,
 								   const vector<ColorIndexData> indexDatas,
 								   function<Point4(Point3)> vertexShader) {
 	for (auto& data : indexDatas) {
-		assert(data.pointIndex[0] < points.size());
-		assert(data.pointIndex[1] < points.size());
-		assert(data.pointIndex[2] < points.size());
-		assert(data.colorIndex[0] < colors.size());
-		assert(data.colorIndex[1] < colors.size());
-		assert(data.colorIndex[2] < colors.size());
+		assert(std::all_of(data.pointIndex.begin(), data.pointIndex.end(), [&](unsigned i) {
+			return i < points.size();
+		}));
+		assert(std::all_of(data.colorIndex.begin(), data.colorIndex.end(), [&](unsigned i) {
+			return i < points.size();
+		}));
 		//执行顶点着色器后得到点
 		auto mainPoint4s = Array<int, 3>{0, 1, 2}.Stream([&](std::size_t i) {
 			return vertexShader(points[data.pointIndex[i]]);
@@ -119,7 +119,6 @@ void Renderer::DrawTriangleByColor(const vector<Point3>& points,
 		auto mainColors = Array<int, 3>{0, 1, 2}.Stream([&](std::size_t i) {
 			return colors[data.colorIndex[i]];
 		});
-
 		//背面消除(逆时针消除) 若消除直接进入下一个循环
 		auto point2s = mainPoint4s.Stream([](const Point4& point4) {
 			return point4.GetPoint2();
@@ -128,7 +127,7 @@ void Renderer::DrawTriangleByColor(const vector<Point3>& points,
 			continue;
 		}
 		//远近平面剪裁 最多剪裁出4个三角形
-		MaxCapacityArray<Array<Point4, 3>, 4> trianglePoints = TriangleNearAndFarClip(mainPoint4s);
+		auto trianglePoints = TriangleNearAndFarClip(mainPoint4s);
 		for (auto& points : trianglePoints) {
 			HandleTriangle(points, [&](int x, int y, Array<float, 3> coefficients) {
 				Point4 point = ComputeCenterPoint(coefficients, mainPoint4s);
@@ -227,11 +226,11 @@ void Renderer::HandleLine(Array<Point2, 2> points) {
 	}
 }
 
-void Renderer::HandleTriangle(Array<Point4, 3> points, 
-							  function<void(int x, int y, Array<float, 3>coefficent)> howToUseCoefficient) {
-	assert(points[0].w != 0.0f);
-	assert(points[1].w != 0.0f);
-	assert(points[2].w != 0.0f);
+void Renderer::HandleTriangle(Array<Point4, 3> points,
+							  function<void(int, int, Array<float, 3>)> howToUseCoefficient) {
+	assert(std::all_of(points.begin(), points.end(), [&](Point4 p) {
+		return p.w != 0.0f;
+	}));
 	//获取三角形中顶点最大最小的x y值
 	//用于计算需要绘制的边框
 	auto xValue = points.Stream([](const Point4& p) {
@@ -255,17 +254,15 @@ void Renderer::HandleTriangle(Array<Point4, 3> points,
 	for (int yIndex = yMin; yIndex <= yMax; yIndex++) {
 		for (int xIndex = xMin; xIndex <= xMax; xIndex++) {
 			//每一个需要绘制的屏幕上的点
-			Point2 screenPoint{
-				PixelToScreen(xIndex, width), PixelToScreen(yIndex, height)
-			};
+			Point2 screenPoint{PixelToScreen(xIndex, width), PixelToScreen(yIndex, height)};
 			//计算重心系数
-			Array<float, 3> coefficient = ComputeCenterCoefficient(screenPoint, mainPoints);
+			auto coefficients = ComputeCenterCoefficient(screenPoint, mainPoints);
 			//在三角形内部
-			bool inTriangle = std::all_of(coefficient.begin(), coefficient.end(), [](float f) {
+			bool inTriangle = std::all_of(coefficients.begin(), coefficients.end(), [](float f) {
 				return f > 0.0f;
 			});
 			if (inTriangle) {
-				howToUseCoefficient(xIndex, yIndex, coefficient);
+				howToUseCoefficient(xIndex, yIndex, coefficients);
 			}
 		}
 	}
@@ -304,8 +301,9 @@ Color RGBColorToColor(RGBColor c) {
 
 bool BackCulling(Array<Point2, 3> points) {
 	/*
-		计算向量
+		计算向量 k 的方向
 		g等于行列式
+
 		i  j  k
 		x1 y1 0
 		x2 y2 0
@@ -354,8 +352,8 @@ bool ScreenLineClip(Array<Point2, 2>& points) {
 
 	//储存点所代表的t (x0 + tΔx)
 	//代表取点原本的位置或者边界
-	array<float, 3> t0Array{0.0f, 0.0f, 0.0f};//取最大
-	array<float, 3> t1Array{1.0f, 1.0f, 1.0f};//取最小
+	Array<float, 3> t0Array{0.0f, 0.0f, 0.0f};//取最大
+	Array<float, 3> t1Array{1.0f, 1.0f, 1.0f};//取最小
 
 	if (deltaX != 0.0f) {
 		float u1 = q1 / p1;
@@ -409,31 +407,25 @@ bool ScreenLineEqual(Array<Point2, 2> pointsA, Array<Point2, 2> pointsB) {
 }
 
 //返回与两点直线在平面上的交点
-Point4 ComputePlanePoint(float C, float D, Point4 point0, Point4 point1) {
+Point4 ComputePlanePoint(Vector4 N, Array<Point4,2> points) {
 	//计算两点与平面的系数t
 	//这里扩展到四维 方法和三维一样
 	//N[P0 + t(P1 - P0)] = 0
 	// t = - (N * P0) / (N * (P1 - P0))
-	//但是平面 A B 都等于0 只需要计算 z 和 w
-	array<float, 4> vector4{
-		point1.x - point0.x, point1.y - point0.y, point1.z - point0.z, point1.w - point0.w
-	};
-	float nP0 = -(C * point0.z + D * point0.w);
-	float nP0_P1 = (C * vector4[2] + D * vector4[3]);
-	float t = nP0 / nP0_P1;
-	return Point4{
-		point0.x + t * vector4[0],
-		point0.y + t * vector4[1],
-		point0.z + t * vector4[2],
-		point0.w + t * vector4[3],
-	};
+	Vector4 vector4 = points[1] - points[0];
+	float t = -(N * points[0].GetVector4FormOrigin()) / (N * vector4);
+	Point4 p = points[0] + (vector4 * t);
+	return p;
 }
 
 MaxCapacityArray<Array<Point4, 3>, 4> TriangleNearAndFarClip(const Array<Point4, 3> & points) {
+	constexpr Vector4 near{0.0f, 0.0f, -1.0f, 0.0f};
+	constexpr Vector4 far{0.0f, 0.0f, 1.0f, -1.0f};
+
 	MaxCapacityArray<Array<Point4, 3>, 4> triangleArray;
-	MaxCapacityArray<Array<Point4, 3>, 2> nearClipTriangles = TriangleClip(-1.0f, 0.0f, points);
+	MaxCapacityArray<Array<Point4, 3>, 2> nearClipTriangles = TriangleClip(near, points);
 	for (auto& nearClipTriangle : nearClipTriangles) {
-		auto farClipTriangles = TriangleClip(1.0f, -1.0f, nearClipTriangle);
+		auto farClipTriangles = TriangleClip(far, nearClipTriangle);
 		for (auto& farClipTriangle : farClipTriangles) {
 			triangleArray.Push(farClipTriangle);
 		}
@@ -441,14 +433,14 @@ MaxCapacityArray<Array<Point4, 3>, 4> TriangleNearAndFarClip(const Array<Point4,
 	return triangleArray;
 }
 
-MaxCapacityArray<Array<Point4, 3>, 2> TriangleClip(float C, float D, const Array<Point4, 3> & points) {
+MaxCapacityArray<Array<Point4, 3>, 2> TriangleClip(Vector4 vector4, const Array<Point4, 3> & points) {
 	//判断点在平面的哪一侧
 	auto pointBools = points.Stream([](const Point4& p) {
 		return std::pair<Point4, float>{p, 0.0f};
 	});
-	//带入超平面得到梯度方向的距离
+	//带入超平面得到梯度方向的距离 
 	for (auto& pointBool : pointBools) {
-		pointBool.second = pointBool.first.z * C + pointBool.first.w * D;
+		pointBool.second = pointBool.first.GetVector4FormOrigin() * vector4;
 	}
 	//根据距离排序
 	std::sort(pointBools.begin(), pointBools.end(), [](auto& pointBool1, auto& pointBool2) {
@@ -471,8 +463,8 @@ MaxCapacityArray<Array<Point4, 3>, 2> TriangleClip(float C, float D, const Array
 					   |/
 					   *Point2
 		*/
-		Point4 newPoint1 = ComputePlanePoint(C, D, pointBools[0].first, pointBools[2].first);
-		Point4 newPoint2 = ComputePlanePoint(C, D, pointBools[0].first, pointBools[1].first);
+		Point4 newPoint1 = ComputePlanePoint(vector4, {pointBools[0].first, pointBools[2].first});
+		Point4 newPoint2 = ComputePlanePoint(vector4, {pointBools[0].first, pointBools[1].first});
 		triangleArray.Push({pointBools[0].first, newPoint1, newPoint2});
 	} else if (pointCount == 2) {
 		/*
@@ -485,8 +477,8 @@ MaxCapacityArray<Array<Point4, 3>, 2> TriangleClip(float C, float D, const Array
 			newPoint1  |/   newPoint2
 	    		       *Point2
         */
-		Point4 newPoint1 = ComputePlanePoint(C, D, pointBools[0].first, pointBools[2].first);
-		Point4 newPoint2 = ComputePlanePoint(C, D, pointBools[1].first, pointBools[2].first);
+		Point4 newPoint1 = ComputePlanePoint(vector4, {pointBools[0].first, pointBools[2].first});
+		Point4 newPoint2 = ComputePlanePoint(vector4, {pointBools[1].first, pointBools[2].first});
 		triangleArray.Push({pointBools[0].first, newPoint1, newPoint2});
 		triangleArray.Push({pointBools[0].first, newPoint2, pointBools[1].first});
 	} else if (pointCount == 3) {
@@ -504,12 +496,7 @@ MaxCapacityArray<Array<Point2, 2>, 9> GetNotRepeatingScreenLines(const MaxCapaci
 		auto point2s = triangle.Stream([](const Point4& p) {
 			return p.ToPoint3().GetPoint2();
 		});
-		//线框三角形变成2D线段
-		array<Array<Point2, 2>, 3> lines{
-			Array<Point2, 2>{point2s[0], point2s[1]},
-			Array<Point2, 2>{point2s[1], point2s[2]},
-			Array<Point2, 2>{point2s[2], point2s[0]},
-		};
+		auto lines = Array<Array<Point2, 2>, 3>{{point2s[0], point2s[1]}, {point2s[1], point2s[2]}, {point2s[2], point2s[0]}};
 		//不重复线段加入容器中
 		for (auto& line : lines) {
 			//找不到相同的直线
@@ -531,7 +518,7 @@ Array<float, 3> ComputeCenterCoefficient(Point2 point, Array<Point2, 3> points) 
 	float alpha = ComputeLineEquation(point, points[1], points[2]) / fa;
 	float beta = ComputeLineEquation(point, points[2], points[0]) / fb;
 	float gamma = ComputeLineEquation(point, points[0], points[1]) / fc;
-	return Array<float, 3>{alpha, beta, gamma};
+	return {alpha, beta, gamma};
 }
 Color ComputerCenterColor(Array<float, 3> coefficients, Array<Color, 3> colors) {
 	return ArrayIndex<3>().Stream([&](int i) {
