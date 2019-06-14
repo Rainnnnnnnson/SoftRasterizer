@@ -9,9 +9,10 @@ using std::vector;
 using std::function;
 
 struct RGBColor;
-class RGBImage;
-struct IndexData;
+struct WireframeIndexData;
 struct ColorIndexData;
+struct TextureIndexData;
+class RGBImage;
 class Renderer;
 
 struct RGBColor {
@@ -20,46 +21,20 @@ struct RGBColor {
 	unsigned char b;
 };
 
-/*
-	int   获取坐标使用[0, width -1] * [0, height - 1]
-	float 获取坐标使用[0,1] * [0,1]
-*/
-class RGBImage {
-public:
-	RGBImage(int width, int height);
-	int GetWidth() const;
-	int GetHeight() const;
-
-	//==========================================
-
-	//左上角为[0,0]
-	RGBColor GetPixel(int x, int y) const;
-	void SetPixel(int x, int y, RGBColor rgb);
-
-	//=========================================
-
-	//左下角为[0,0]
-	RGBColor ReverseGetPixel(int x, int y) const;
-	void ReverseSetPixel(int x, int y, RGBColor rgb);
-	//取值[0,1] 超过取边界
-	Color BilinearFiltering(Point2 p) const;
-private:
-	int width;
-	int height;
-	//以左上角为[0,0]计算
-	//内存是图片顺序存储的 index = y * width + x
-	vector<RGBColor> rgbs;
-};
-
-struct IndexData {
+struct WireframeIndexData {
 	Array<unsigned, 3> pointIndex;
-	Array<unsigned, 3> textureCoordinateIndex;
-	unsigned textureIndex;
 };
+
 
 struct ColorIndexData {
 	Array<unsigned, 3> pointIndex;
 	Array<unsigned, 3> colorIndex;
+};
+
+struct TextureIndexData {
+	Array<unsigned, 3> pointIndex;
+	Array<unsigned, 3> textureCoordinateIndex;
+	unsigned textureIndex;
 };
 
 /*
@@ -95,6 +70,37 @@ MaxCapacityArray<Array<Point4, 3>, 4> TriangleNearAndFarClip(const Array<Point4,
 MaxCapacityArray<Array<Point2, 2>, 9> GetNotRepeatingScreenLines(const MaxCapacityArray<Array<Point4, 3>, 4> & triangles);
 
 /*
+	int   获取坐标使用[0, width -1] * [0, height - 1]
+	float 获取坐标使用[0,1] * [0,1]
+*/
+class RGBImage {
+public:
+	RGBImage(int width, int height);
+	int GetWidth() const;
+	int GetHeight() const;
+
+	//==========================================
+
+	//左上角为[0,0]
+	RGBColor GetPixel(int x, int y) const;
+	void SetPixel(int x, int y, RGBColor rgb);
+
+	//=========================================
+
+	//左下角为[0,0]
+	RGBColor ReverseGetPixel(int x, int y) const;
+	void ReverseSetPixel(int x, int y, RGBColor rgb);
+	//取值[0,1] 超过取边界
+	Color BilinearFiltering(Point2 p) const;
+private:
+	int width;
+	int height;
+	//以左上角为[0,0]计算
+	//内存是图片顺序存储的 index = y * width + x
+	vector<RGBColor> rgbs;
+};
+
+/*
 	可视空间 x * y * z == [-1,1) * [-1.1) * [0,1]
 	左手坐标系
 */
@@ -117,22 +123,17 @@ public:
 	*/
 	void DrawTriangleByColor(const vector<Point3>& points,
 							 const vector<Color>& colors,
-							 const vector<ColorIndexData> indexs,
+							 const vector<ColorIndexData>& indexs,
 							 function<Point4(Point3)> vertexShader);
 
 	/*
 		画白色线框 
 		覆盖在所有图像的最前面
-		顶点着色器可能对顶点进行改变
-		像素着色器没有影响 所以没有这个着色器
 		画出的线框是剪裁以后的
 	*/
-	template<typename Texture>
 	void DrawTriangleByWireframe(const vector<Point3>& points,
-								 const vector<Point2>& textureCoordinates,
-								 const vector<Texture>& textures,
-								 const vector<IndexData>& indexDatas,
-								 function<Point4(Point3, Point2, const Texture&)> vertexShader);
+								 const vector<WireframeIndexData>& indexDatas,
+								 function<Point4(Point3)> vertexShader);
 
 	/*
 		画纹理三角形
@@ -156,15 +157,10 @@ public:
 	void DrawTriangleByTexture(const vector<Point3>& points,
 							   const vector<Point2>& textureCoordinates,
 							   const vector<Texture>& textures,
-							   const vector<IndexData>& indexs,
+							   const vector<TextureIndexData>& indexs,
 							   function<Point4(Point3, Point2, const Texture&)> vertexShader,
 							   function<Color(Point4, Point2, const Texture&)> pixelShader);
 private:
-	//画白色线段 覆盖在图像最前面
-	void HandleLine(Array<Point2, 2> line);
-	//画三角形像素 lambda 区分纹理还是颜色
-	void HandleTriangle(Array<Point4, 3> points,
-						function<void(int, int, Array<float, 3>)> howToUseCoefficient);
 	//这个用于绘制纹理三角形来画像素的
 	void DrawZBuffer(int x, int y, float z, RGBColor color);
 	//这个用于绘制白色直线覆盖在最前面的点
@@ -181,6 +177,13 @@ private:
 	*/
 	vector<std::pair<float, RGBColor>> zBuffer;
 };
+
+//画白色线段 覆盖在图像最前面
+void HandleLine(int width, int height, Array<Point2, 2> line,
+				function<void(int, int)> func);
+//画三角形像素
+void HandleTriangle(int width, int height, Array<Point4, 3> mainPoints, Array<Point4, 3> points,
+					function<void(int, int, Array<float, 3>)> howToUseCoefficient);
 
 /*
 	超平面剪裁 Ax + By + Cz + Dw = 0
@@ -278,46 +281,11 @@ int PixelToIndex(int x, int y, int width);
 */
 int ReversePixelToIndex(int x, int y, int width, int height);
 
-
-template<typename Texture>
-inline void Renderer::DrawTriangleByWireframe(const vector<Point3>& points,
-											  const vector<Point2>& textureCoordinates,
-											  const vector<Texture>& textures,
-											  const vector<IndexData>& indexDatas,
-											  function<Point4(Point3, Point2, const Texture&)> vertexShader) {
-	for (auto& data : indexDatas) {
-		assert(std::all_of(data.pointIndex.begin(), data.pointIndex.end(), [&](unsigned i) {
-			return i < points.size();
-		}));
-		assert(std::all_of(data.textureCoordinateIndex.begin(), data.textureCoordinateIndex.end(), [&](unsigned i) {
-			return i < points.size();
-		}));
-		assert(data.textureIndex < textures.size());
-		//执行顶点着色器后得到点
-		auto point4 = Array<int, 3>{0, 1, 2}.Stream([&](int i) {
-			return vertexShader(points[data.pointIndex[i]],
-								textureCoordinates[data.textureCoordinateIndex[i]],
-								textures[data.textureIndex]);
-		});
-		//线框模式下不进行背面消除 显示全部线段
-		//剪裁后最多得到4个三角形
-		auto triangles = TriangleNearAndFarClip(point4);
-		//获取不重复线段
-		auto screenLines = GetNotRepeatingScreenLines(triangles);
-		//绘制线段
-		for (auto& screenLine : screenLines) {
-			if (ScreenLineClip(screenLine)) {
-				HandleLine(screenLine);
-			}
-		}
-	}
-}
-
 template<typename Texture>
 inline void Renderer::DrawTriangleByTexture(const vector<Point3>& points,
 											const vector<Point2>& textureCoordinates,
 											const vector<Texture>& textures,
-											const vector<IndexData>& indexDatas,
+											const vector<TextureIndexData>& indexDatas,
 											function<Point4(Point3, Point2, const Texture&)> vertexShader,
 											function<Color(Point4, Point2, const Texture&)> pixelShader) {
 	for (auto& data : indexDatas) {
@@ -353,12 +321,15 @@ inline void Renderer::DrawTriangleByTexture(const vector<Point3>& points,
 		//得到纹理坐标
 		for (auto& trianglePoint : trianglePoints) {
 			//光栅化阶段
-			HandleTriangle(mainPoints, [&](int x, int y, Array<float, 3> coefficent) {
-				Point4 point = ComputeCenterPoint(coefficent, mainPoints);
-				Point2 textureCoodinate = ComputeCenterTextureCoordinate(coefficent, mainTextureCoodinates, mainPointsW);
-				Color color = pixelShader(point, textureCoodinate, texture);
-				float depth = std::clamp(point.z / point.w, 0.0f, 1.0f);
-				DrawZBuffer(x, y, depth, ColorToRGBColor(color));
+			HandleTriangle(width, height, mainPoints, trianglePoint, [&](int x, int y, Array<float, 3> coefficent) {
+				auto point = ComputeCenterPoint(coefficent, mainPoints);
+				//判断深度
+				float depth = point.ToPoint3().z;
+				if (InScreenZ(depth)) {
+					Point2 textureCoodinate = ComputeCenterTextureCoordinate(coefficent, mainTextureCoodinates, mainPointsW);
+					Color color = pixelShader(point, textureCoodinate, texture);
+					DrawZBuffer(x, y, depth, ColorToRGBColor(color));
+				}
 			});
 		}
 	}

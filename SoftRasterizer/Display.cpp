@@ -82,7 +82,8 @@ void Display::Update(function<RGBImage()> getImage) {
 			DispatchMessage(&msg);
 		} else {
 			RGBImage image = getImage();
-			//TODO
+			assert(image.GetWidth() == width);
+			assert(image.GetHeight() == height);
 			PAINTSTRUCT ps;
 			Gdiplus::BitmapData bitmapData;
 			BeginPaint(hwnd, &ps);

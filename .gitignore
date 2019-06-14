@@ -20,3 +20,9 @@
 /Release
 /DrawColorfulTriangle/Debug
 /DrawTextureTriangle/Debug
+/DrawWireframeCube/Release
+/DrawWireframeCube/Debug
+/DrawTextureCube/Release
+/DrawColorfulTriangle/Release
+/DrawColorfulCube/Debug
+/DrawColorfulCube/Release

@@ -103,41 +103,73 @@ RGBImage Renderer::GenerateImage() const {
 
 void Renderer::DrawTriangleByColor(const vector<Point3>& points,
 								   const vector<Color>& colors,
-								   const vector<ColorIndexData> indexDatas,
+								   const vector<ColorIndexData>& indexDatas,
 								   function<Point4(Point3)> vertexShader) {
 	for (auto& data : indexDatas) {
 		assert(std::all_of(data.pointIndex.begin(), data.pointIndex.end(), [&](unsigned i) {
 			return i < points.size();
 		}));
 		assert(std::all_of(data.colorIndex.begin(), data.colorIndex.end(), [&](unsigned i) {
-			return i < points.size();
+			return i < colors.size();
 		}));
 		//执行顶点着色器后得到点
-		auto mainPoint4s = Array<int, 3>{0, 1, 2}.Stream([&](std::size_t i) {
+		auto mainPoints = ArrayIndex<3>().Stream([&](std::size_t i) {
 			return vertexShader(points[data.pointIndex[i]]);
 		});
-		auto mainColors = Array<int, 3>{0, 1, 2}.Stream([&](std::size_t i) {
+		auto mainColors = ArrayIndex<3>().Stream([&](std::size_t i) {
 			return colors[data.colorIndex[i]];
 		});
 		//背面消除(逆时针消除) 若消除直接进入下一个循环
-		auto point2s = mainPoint4s.Stream([](const Point4& point4) {
+		auto point2s = mainPoints.Stream([](const Point4& point4) {
 			return point4.GetPoint2();
 		});
 		if (BackCulling(point2s)) {
 			continue;
 		}
-		//远近平面剪裁 最多剪裁出4个三角形
-		auto trianglePoints = TriangleNearAndFarClip(mainPoint4s);
+		auto mainPointsW = mainPoints.Stream([](const Point4& p) {
+			return p.w;
+		});
+		//远近平面剪裁
+		auto trianglePoints = TriangleNearAndFarClip(mainPoints);
 		for (auto& points : trianglePoints) {
-			HandleTriangle(points, [&](int x, int y, Array<float, 3> coefficients) {
-				Point4 point = ComputeCenterPoint(coefficients, mainPoint4s);
-				Color color = ComputerCenterColor(coefficients, mainColors);
-				//限制浮点数精度问题 限制z 到[0,1]
-				float z = std::clamp(point.z / point.w, 0.0f, 1.0f);
-				DrawZBuffer(x, y, z, ColorToRGBColor(color));
+			//光栅化阶段
+			HandleTriangle(width, height, mainPoints, points, [&](int x, int y, Array<float, 3> coefficients) {
+				auto point = ComputeCenterPoint(coefficients, mainPoints);
+				//判断深度
+				float depth = point.ToPoint3().z;
+				if (InScreenZ(depth)) {
+					Color color = ComputerCenterColor(coefficients, mainColors);
+					DrawZBuffer(x, y, depth, ColorToRGBColor(color));
+				}
 			});
 		}
+	}
+}
 
+void Renderer::DrawTriangleByWireframe(const vector<Point3>& points,
+									   const vector<WireframeIndexData>& indexDatas,
+									   function<Point4(Point3)> vertexShader) {
+	for (auto& data : indexDatas) {
+		assert(std::all_of(data.pointIndex.begin(), data.pointIndex.end(), [&](unsigned i) {
+			return i < points.size();
+		}));
+		//执行顶点着色器后得到点
+		auto mainPoints = ArrayIndex<3>().Stream([&](int i) {
+			return vertexShader(points[data.pointIndex[i]]);
+		});
+		//线框模式下不进行背面消除 显示全部线段
+		//剪裁后最多得到4个三角形
+		auto triangles = TriangleNearAndFarClip(mainPoints);
+		//获取不重复线段
+		auto screenLines = GetNotRepeatingScreenLines(triangles);
+		//绘制线段
+		for (auto& screenLine : screenLines) {
+			if (ScreenLineClip(screenLine)) {
+				HandleLine(width, height, screenLine, [&](int x,int y) {
+					DrawWritePixel(x, y);
+				});
+			}
+		}
 	}
 }
 
@@ -186,7 +218,7 @@ void DrawLineByMiddlePoint(Array<Point2, 2> points, int width, int height, funct
 		bool pointUpLine = (addtion * ComputeLineEquation(middlePoint, pointA, pointB)) >= 0.0f;
 		float y = pointUpLine ? (middleY - addtion * halfPixelHeight) : (middleY + addtion * halfPixelHeight);
 		int pixelY = ScreenToPixel(y, height);
-		func(pixelX, pixelY);
+		func(std::clamp(pixelX, 0, width - 1), std::clamp(pixelY, 0, height - 1));
 		//取[0,1)作为例子 中点在直线下方 需要提高中点一个单位
 		if (!pointUpLine) {
 			middleY += addtion * GetPixelDelta(height);
@@ -194,9 +226,8 @@ void DrawLineByMiddlePoint(Array<Point2, 2> points, int width, int height, funct
 	}
 }
 
-void Renderer::HandleLine(Array<Point2, 2> points) {
-	assert(InScreenXY(points[0]));
-	assert(InScreenXY(points[1]));
+void HandleLine(int width, int height, Array<Point2, 2> points,
+				function<void(int, int)> func) {
 	//这里乘以图片比例主要是因为图片比例会导致k > 1 或者 k < -1的情况 画线不正确
 	//中点算法一次只能上升或者下降一格像素 当K > 1时 只能取K == 1 (K<-1 同理)
 	float y = (points[1].y - points[0].y) * static_cast<float>(height);
@@ -205,7 +236,7 @@ void Renderer::HandleLine(Array<Point2, 2> points) {
 	float k = y / x;
 	if (k >= -1.0f && k < 1.0f) {
 		DrawLineByMiddlePoint(points, width, height, [&](int x, int y) {
-			DrawWritePixel(x, y);
+			func(x, y);
 		});
 	} else if (k < -1.0f || k >= 1.0f) {
 		//用x = ky + b当作直线
@@ -218,7 +249,7 @@ void Renderer::HandleLine(Array<Point2, 2> points) {
 		int reverseHeight = width;
 		DrawLineByMiddlePoint(reversePoints, reverseWidth, reverseHeight, [&](int x, int y) {
 			//这里也要反转
-			DrawWritePixel(y, x);
+			func(y, x);
 		});
 	} else {
 		//k = NaN
@@ -226,19 +257,19 @@ void Renderer::HandleLine(Array<Point2, 2> points) {
 	}
 }
 
-void Renderer::HandleTriangle(Array<Point4, 3> points,
-							  function<void(int, int, Array<float, 3>)> howToUseCoefficient) {
+void HandleTriangle(int width, int height, Array<Point4, 3> mainPoints, Array<Point4, 3> points,
+					function<void(int, int, Array<float, 3>)> howToUseCoefficient) {
 	assert(std::all_of(points.begin(), points.end(), [&](Point4 p) {
 		return p.w != 0.0f;
 	}));
 	//获取三角形中顶点最大最小的x y值
 	//用于计算需要绘制的边框
 	auto xValue = points.Stream([](const Point4& p) {
-		return p.x;
+		return p.ToPoint3().x;
 	});
 	std::sort(xValue.begin(), xValue.end(), std::less<float>());
 	auto yValue = points.Stream([](const Point4& p) {
-		return p.y;
+		return p.ToPoint3().y;
 	});
 	std::sort(yValue.begin(), yValue.end(), std::less<float>());
 	//确定需要绘制的边界
@@ -246,17 +277,17 @@ void Renderer::HandleTriangle(Array<Point4, 3> points,
 	int xMin = std::max(ScreenToPixel(xValue[0], width), 0);
 	int yMax = std::min(ScreenToPixel(yValue[2], height), height - 1);
 	int yMin = std::max(ScreenToPixel(yValue[0], height), 0);
-	//需要绘制的三角形映射至屏幕
-	auto mainPoints = points.Stream([](const Point4& p) {
+	//最大的三角形
+	auto screenMainPoints = mainPoints.Stream([](const Point4& p) {
 		return p.ToPoint3().GetPoint2();
 	});
 	//循环限定矩形 [xMin,xMax] * [yMin,yMax]
 	for (int yIndex = yMin; yIndex <= yMax; yIndex++) {
 		for (int xIndex = xMin; xIndex <= xMax; xIndex++) {
 			//每一个需要绘制的屏幕上的点
-			Point2 screenPoint{PixelToScreen(xIndex, width), PixelToScreen(yIndex, height)};
+			Point2 point{PixelToScreen(xIndex, width), PixelToScreen(yIndex, height)};
 			//计算重心系数
-			auto coefficients = ComputeCenterCoefficient(screenPoint, mainPoints);
+			auto coefficients = ComputeCenterCoefficient(point, screenMainPoints);
 			//在三角形内部
 			bool inTriangle = std::all_of(coefficients.begin(), coefficients.end(), [](float f) {
 				return f > 0.0f;
@@ -319,7 +350,7 @@ bool BackCulling(Array<Point2, 3> points) {
 	return false;
 }
 
-bool ScreenLineClip(Array<Point2, 2>& points) {
+bool ScreenLineClip(Array<Point2, 2> & points) {
 	//边界
 	constexpr float xMin = -1.0f;
 	constexpr float xMax = 1.0f;
@@ -386,14 +417,14 @@ bool ScreenLineClip(Array<Point2, 2>& points) {
 	if (t0 >= t1) {
 		return false;
 	}
-
 	float newX0 = x0 + t0 * deltaX;
 	float newY0 = y0 + t0 * deltaY;
 	float newX1 = x0 + t1 * deltaX;
 	float newY1 = y0 + t1 * deltaY;
 
-	points[0] = Point2{newX0, newY0};
-	points[1] = Point2{newX1, newY1};
+	//剪裁完之后浮点数问题需要限制
+	points[0] = {newX0, newY0};
+	points[1] = {newX1, newY1};
 	return true;
 }
 
@@ -520,15 +551,18 @@ Array<float, 3> ComputeCenterCoefficient(Point2 point, Array<Point2, 3> points) 
 	float gamma = ComputeLineEquation(point, points[0], points[1]) / fc;
 	return {alpha, beta, gamma};
 }
+
 Color ComputerCenterColor(Array<float, 3> coefficients, Array<Color, 3> colors) {
 	return ArrayIndex<3>().Stream([&](int i) {
 		return colors[i] * coefficients[i];
 	}).Sum();
 }
+
 Point4 ComputeCenterPoint(Array<float, 3> coefficients, Array<Point4, 3> points) {
-	return ArrayIndex<3>().Stream([&](int i) {
-		return points[i] * coefficients[i];
+	auto point = ArrayIndex<3>().Stream([&](int i) {
+		return points[i]* coefficients[i];
 	}).Sum();
+	return point;
 }
 Point2 ComputeCenterTextureCoordinate(Array<float, 3> coefficients,
 									  Array<Point2, 3> textureCoordinates,
@@ -540,8 +574,7 @@ Point2 ComputeCenterTextureCoordinate(Array<float, 3> coefficients,
 		return coefficients[i] * (textureCoordinates[i].y / pointW[i]);
 	}).Sum();
 	float screenOne = ArrayIndex<3>().Stream([&](int i) {
-		constexpr float one = 1.0f;
-		return coefficients[i] * (one / pointW[i]);
+		return coefficients[i] * (1.0f / pointW[i]);
 	}).Sum();
 	return Point2{screenU / screenOne, screenV / screenOne};
 }

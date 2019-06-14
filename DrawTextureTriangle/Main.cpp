@@ -11,7 +11,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance,
 	auto points = vector<Point3>{{0.5f, 0.4f, 0.0f}, {0.4f, -0.5f, 0.0f}, {-0.5f, 0.5f, 0.0f}};
 	auto textureCoordinates = vector<Point2>{{1.0f, 1.0f}, {1.0f, 0.0f}, {0.0f, 1.0f}};
 	auto textures = vector<RGBImage>{fileImage};
-	auto indexDatas = vector<IndexData>{{{0, 1, 2}, {0, 1, 2}, 0}};
+	auto  indexDatas = vector<TextureIndexData>{{{0, 1, 2}, {0, 1, 2}, 0}};
 	auto vertexShader = [](Point3 p, Point2, const RGBImage&) {
 		return p.ToPoint4();
 	};

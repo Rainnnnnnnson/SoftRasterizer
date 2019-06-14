@@ -12,12 +12,63 @@ Vector3 operator*(const float& f, const Vector3& v) {
 	return Vector3{f * v.x, f * v.y, f * v.z};
 }
 
+Matrix4X4 Scale(float x, float y, float z) {
+	return {
+		x, 0.0f, 0.0f, 0.0f,
+		0.0f, y, 0.0f, 0.0f,
+		0.0f, 0.0f, z, 0.0f,
+		0.0f, 0.0f, 0.0f, 1.0f
+	};
+}
+
+Matrix4X4 Move(Vector3 direction) {
+	return {
+		1.0f, 0.0f, 0.0f, direction.x,
+		0.0f, 1.0f, 0.0f, direction.y,
+		0.0f, 0.0f, 1.0f, direction.z,
+		0.0f, 0.0f, 0.0f, 1.0,
+	};
+}
+
 Matrix4X4 Perspective(float n, float f, float l, float r, float b, float t) {
 	return Matrix4X4{
 		(2.0f * n) / (r - l), 0.0f, -(r + l) / (r - l), 0.0f,
 		0.0f, (2.0f * n) / (t - b), -(t + b) / (t - b), 0.0f,
 		0.0f, 0.0f, f / (f - n), -(n * f) / (f - n),
 		0.0f, 0.0f, 1.0f, 0.0f
+	};
+}
+
+Matrix4X4 RotateX(float r) {
+	float sinX = sin(r);
+	float cosX = cos(r);
+	return {
+		1.0f, 0.0f, 0.0f, 0.0f,
+		0.0f, cosX, -sinX, 0.0f,
+		0.0f, sinX, cosX, 0.0f,
+		0.0f, 0.0f, 0.0f, 1.0f
+	};
+}
+
+Matrix4X4 RotateY(float r) {
+	float sinX = sin(r);
+	float cosX = cos(r);
+	return {
+		cosX, 0.0f, sinX, 0.0f,
+		0.0f, 1.0f, 0.0f, 0.0f,
+		-sinX, 0.0f, cosX, 0.0f,
+		0.0f, 0.0f, 0.0f, 1.0f
+	};
+}
+
+Matrix4X4 RotateZ(float r) {
+	float sinX = sin(r);
+	float cosX = cos(r);
+	return {
+		cosX, -sinX, 0.0f, 0.0f, 
+		sinX, cosX, 0.0f, 0.0f,
+		0.0f, 0.0f, 1.0f, 0.0f,
+		0.0f, 0.0f, 0.0f, 1.0f
 	};
 }
 

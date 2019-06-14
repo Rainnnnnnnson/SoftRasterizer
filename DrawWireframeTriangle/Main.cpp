@@ -9,14 +9,11 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance,
 	Renderer renderer(width, height);
 
 	auto points = vector<Point3>{{0.5f, 0.4f, 0.0f}, {0.4f, -0.5f, 0.0f}, {-0.5f, 0.5f, 0.0f}};
-	auto textureCoordinates = vector<Point2>{{0.0f, 0.0f}};
-	//就算没有纹理也需要添加一个元素
-	auto textures = vector<float>{0.0f};
-	auto indexDatas = vector<IndexData>{{{0, 1, 2}, {0, 0, 0}, 0}};
-	auto vertexShader = [](Point3 p, Point2, const int&) {
+	auto indexDatas = vector<WireframeIndexData>{{{0, 1, 2}}};
+	auto vertexShader = [](Point3 p) {
 		return p.ToPoint4();
 	};
-	renderer.DrawTriangleByWireframe<float>(points, textureCoordinates, textures, indexDatas, vertexShader);
+	renderer.DrawTriangleByWireframe(points, indexDatas, vertexShader);
 	display.Update([&]() {
 		return renderer.GenerateImage();
 	});
