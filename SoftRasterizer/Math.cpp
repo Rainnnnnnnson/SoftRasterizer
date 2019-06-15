@@ -1,8 +1,5 @@
 #include "Math.h"
 #include <cmath>
-float ComputeLine(float k, float x, float b) {
-	return k * x + b;
-}
 
 float ComputeLineEquation(Point2 p, Point2 p0, Point2 p1) {
 	return (p0.y - p1.y) * p.x + (p1.x - p0.x) * p.y + p0.x * p1.y - p1.x * p0.y;
@@ -128,12 +125,32 @@ Point3 Point4::ToPoint3() const {
 	return Point3{x / w, y / w, z / w};
 }
 
+Vector3 Vector3::operator+(const Vector3& v) const {
+	return {x + v.x, y + v.y, z + v.z};
+}
+
+Point3 Vector3::operator-(const Vector3& v) const {
+	return {x - v.x, y - v.y, z - v.z};
+}
+
 float Vector3::Dot(const Vector3& v) const {
 	return x * v.x + y * v.y + z * v.z;
 }
 
 Vector3 Vector3::Cross(const Vector3& v) const {
 	return Vector3{y * v.z - z * v.y, z * v.x - x * v.z, x * v.y - y * v.x};
+}
+
+float Vector3::Length() const {
+	return sqrt(x * x + y * y + z * z);
+}
+
+Vector3 Vector3::Normalize() const {
+	return (1.0f / Length()) * (*this);
+}
+
+Matrix3X3 Matrix3X3::Inverse() const {
+	return Matrix3X3();
 }
 
 Matrix3X3 Matrix3X3::Transpose() const {
@@ -150,6 +167,14 @@ float Matrix3X3::Determinant() const {
 	return f[0][0] * f[1][1] * f[2][2] - f[0][0] * f[1][2] * f[2][1]
 		+ f[0][1] * f[1][2] * f[2][0] - f[0][1] * f[1][0] * f[2][2]
 		+ f[0][2] * f[1][0] * f[2][1] - f[0][2] * f[1][1] * f[2][0];
+}
+
+Vector3 Matrix3X3::operator*(const Vector3& v) const {
+	return Vector3{
+		f[0][0] * v.x + f[0][1] * v.y + f[0][2] * v.z,
+		f[1][0] * v.x + f[1][1] * v.y + f[1][2] * v.z,
+		f[2][0] * v.x + f[2][1] * v.y + f[2][2] * v.z,
+	};
 }
 
 Matrix3X3 Matrix4X4::GetMatrix3X3() const {

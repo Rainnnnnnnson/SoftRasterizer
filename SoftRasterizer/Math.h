@@ -9,9 +9,6 @@ struct Matrix3X3;
 struct Matrix4X4;
 struct Color;
 
-// y = kx + b
-float ComputeLine(float k, float x, float b);
-
 float ComputeLineEquation(Point2 p, Point2 p0, Point2 p1);
 
 struct Point2 {
@@ -51,11 +48,11 @@ struct Vector3 {
 	float x, y, z;
 	friend Vector3 operator*(const float& f, const Vector3& v);
 	Vector3 operator+(const Vector3& v) const;
-	Vector3 operator-(const Vector3& v) const;
+	Point3 operator-(const Vector3& v) const;
 	float Dot(const Vector3& v) const;
 	Vector3 Cross(const Vector3& v) const;
+	float Length() const;
 	Vector3 Normalize() const;
-	Vector3 Negative() const;
 };
 
 struct Vector4 {

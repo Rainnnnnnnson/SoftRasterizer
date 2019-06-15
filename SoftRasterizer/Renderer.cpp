@@ -121,7 +121,7 @@ void Renderer::DrawTriangleByColor(const vector<Point3>& points,
 		});
 		//背面消除(逆时针消除) 若消除直接进入下一个循环
 		auto point2s = mainPoints.Stream([](const Point4& point4) {
-			return point4.GetPoint2();
+			return point4.ToPoint3().GetPoint2();
 		});
 		if (BackCulling(point2s)) {
 			continue;

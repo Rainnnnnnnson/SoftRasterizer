@@ -308,7 +308,7 @@ inline void Renderer::DrawTriangleByTexture(const vector<Point3>& points,
 		});
 		//背面消除(逆时针消除) 若消除直接进入下一个循环
 		auto point2s = mainPoints.Stream([](const Point4& p) {
-			return p.GetPoint2();
+			return p.ToPoint3().GetPoint2();
 		});
 		if (BackCulling(point2s)) {
 			continue;
