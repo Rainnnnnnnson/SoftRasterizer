@@ -4,7 +4,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance,
 					_In_ LPWSTR lpCmdLine, _In_ int nShowCmd) {
 	constexpr int width = 800;
 	constexpr int height = 600;
-	Display display(hInstance, nShowCmd, width, height);
+	Display display(width, height);
 	RGBImage fileImage = display.GetImage(L"../EZ.PNG");
 
 	Renderer renderer(width, height);

@@ -11,9 +11,12 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
 
 
 
-Display::Display(HINSTANCE hInstance, int nShowCmd, int width, int height)
-	:hInstance(hInstance), width(width), height(height) {
-		// Register the window class.
+Display::Display(int width, int height)
+	: width(width), height(height) {
+	//用这个来获取句柄
+	hInstance = GetModuleHandle(NULL);
+
+	// Register the window class.
 	const wchar_t CLASS_NAME[] = L"Sample Window Class";
 	WNDCLASS wc = {};
 	wc.lpfnWndProc = WindowProc;
@@ -43,7 +46,7 @@ Display::Display(HINSTANCE hInstance, int nShowCmd, int width, int height)
 		NULL        // Additional application data
 	);
 
-	ShowWindow(hwnd, nShowCmd);
+	ShowWindow(hwnd, SW_SHOW);
 	UpdateWindow(hwnd);
 
 	Gdiplus::GdiplusStartup(&gdiplusToken, &gdiplusStartupInput, NULL);

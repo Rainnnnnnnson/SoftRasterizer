@@ -6,7 +6,7 @@
 
 class Display {
 public:
-	Display(HINSTANCE hInstance, int nShowCmd, int width, int height);
+	Display(int width, int height);
 	~Display();
 	RGBImage GetImage(const wchar_t* fileName) const;
 	void Update(function<RGBImage()> getImage);
