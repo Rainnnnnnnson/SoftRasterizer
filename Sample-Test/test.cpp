@@ -40,32 +40,34 @@ TEST(LittleFunction, EdgeTest) {
 
 TEST(BackCulling, Test1) {
 	auto per = Perspective(1.0f, 2.0f, -1.0f, 1.0f, -1.0f, 1.0f);
-	auto point2s = Array<Point3, 3>{
+	auto points = Array<Point3, 3>{
 		{0.0f, 1.0f, -2.0f}, {-1.0f, -1.0f, 1.0f}, {1.0f, -1.0f, 6.0f}
 	}.Stream([&](const Point3& p) {
-		auto point4 = per * p.ToPoint4();
-		return Point2{point4.x, point4.y};
+		return per * p.ToPoint4();
 	});
 	//逆时针消除
-	EXPECT_TRUE(BackCulling(point2s));
-	//顺时针不消除
-	EXPECT_FALSE(BackCulling(Array<Point2, 3>{
-		point2s[2], point2s[1], point2s[0]
-	}));
+	EXPECT_TRUE(BackCulling(points));
 }
 
 TEST(BackCulling, Test2) {
+	//这里说明了不能直接对透视的顶点进行背面消除
 	auto per = Perspective(1.0f, 2.0f, -1.0f, 1.0f, -1.0f, 1.0f);
-	auto point2s = Array<Point3, 3>{
-		{-1.0, 1.0f, 0.5f}, {0.0f, 0.0f, 1.0f}, {1.0f, 0.0f, 1.5f}
+	auto points = Array<Point3, 3>{
+		{-1.0, -2.0f, -1.0f}, {-1.0f, 1.0f, 1.0f}, {1.0f, 1.0f, 2.0f}
 	}.Stream([&](const Point3& p) {
-		auto point4 = per * p.ToPoint4();
-		return Point2{point4.x, point4.y};
+		return per * p.ToPoint4();
 	});
-	EXPECT_TRUE(BackCulling(point2s));
-	EXPECT_FALSE(BackCulling(Array<Point2, 3>{
-		point2s[2], point2s[1], point2s[0]
-	}));
+	EXPECT_FALSE(BackCulling(points));
+}
+
+TEST(BackCulling, Test3) {
+	auto per = Perspective(1.0f, 2.0f, -1.0f, 1.0f, -1.0f, 1.0f);
+	auto points = Array<Point3, 3>{
+		{-1.0, 1.0f, -1.5f}, {0.0f, 0.0f, -1.0f}, {1.0f, 0.0f, 0.5f}
+	}.Stream([&](const Point3& p) {
+		return per * p.ToPoint4();
+	});
+	EXPECT_TRUE(BackCulling(points));
 }
 
 TEST(ScreenLine, EqualsTest) {
