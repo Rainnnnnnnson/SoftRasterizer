@@ -82,6 +82,7 @@ struct Matrix4X4 {
 	Point4 operator*(const Point4& p) const;
 };
 
+Matrix4X4 CameraLookTo(Point3 eye, Vector3 direction, Vector3 up);
 Matrix4X4 Scale(float x, float y, float z);
 Matrix4X4 Move(Vector3 direction);
 Matrix4X4 Perspective(float n, float f, float l, float r, float b, float t);

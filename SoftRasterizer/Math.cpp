@@ -9,6 +9,16 @@ Vector3 operator*(const float& f, const Vector3& v) {
 	return Vector3{f * v.x, f * v.y, f * v.z};
 }
 
+Matrix4X4 CameraLookTo(Point3 eye, Vector3 direction, Vector3 up) {
+	Vector3 right = up.Cross(direction).Normalize();
+	return Matrix4X4{
+		right.x, up.x, direction.x, eye.x,
+		right.y, up.y, direction.y, eye.y,
+		right.z, up.z, direction.z, eye.z,
+		0.0f, 0.0f, 0.0f, 1.0f
+	}.Inverse();
+}
+
 Matrix4X4 Scale(float x, float y, float z) {
 	return {
 		x, 0.0f, 0.0f, 0.0f,

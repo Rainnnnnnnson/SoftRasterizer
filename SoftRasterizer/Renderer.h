@@ -55,7 +55,7 @@ Color RGBColorToColor(RGBColor c);
     顺时针不消除 逆时针消除
 	消除返回true
 */
-bool BackCulling(Array<Point2, 3> points);
+bool BackCulling(Array<Point4, 3> points);
 
 /*
 	远近平面两次剪裁后最多得到4个三角形
@@ -307,10 +307,7 @@ inline void Renderer::DrawTriangleByTexture(const vector<Point3>& points,
 			return textureCoordinates[data.textureCoordinateIndex[i]];
 		});
 		//背面消除(逆时针消除) 若消除直接进入下一个循环
-		auto point2s = mainPoints.Stream([](const Point4& p) {
-			return p.ToPoint3().GetPoint2();
-		});
-		if (BackCulling(point2s)) {
+		if (BackCulling(mainPoints)) {
 			continue;
 		}
 		auto mainPointsW = mainPoints.Stream([](const Point4& p) {

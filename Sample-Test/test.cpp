@@ -416,3 +416,12 @@ TEST(Matrix4x4, Inverse2) {
 		}
 	}
 }
+
+TEST(Camera, Test) {
+	auto camera = CameraLookTo({0.0f, 0.0f, 2.0f}, {-1.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f});
+	Point4 p{-1.0f, 3.0f, 2.0f, 1.0f};
+	Point3 point = (camera * p).ToPoint3();
+	EXPECT_EQ(point.x, 0.0f);
+	EXPECT_EQ(point.y, 3.0f);
+	EXPECT_EQ(point.z, 1.0f);
+}

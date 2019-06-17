@@ -1,5 +1,7 @@
 #include "Renderer.h"
 
+//============================================
+
 RGBImage::RGBImage(int width, int height) : width(width), height(height),
 rgbs(static_cast<size_t>(width)* height, RGBColor{0, 0, 0}) {
 	assert(width > 0);
@@ -69,9 +71,8 @@ Color RGBImage::BilinearFiltering(Point2 p) const {
 
 //================================================================================================================
 
-//在清空状态深度储存为2.0f
-//需要写入其他像素时候可以直接写入
-constexpr float clearDepth = 2.0f;
+//在清空状态深度储存为1.0f
+constexpr float clearDepth = 1.0f;
 //清空屏幕时为黑色
 constexpr RGBColor black = {0, 0, 0};
 
@@ -120,10 +121,7 @@ void Renderer::DrawTriangleByColor(const vector<Point3>& points,
 			return colors[data.colorIndex[i]];
 		});
 		//背面消除(逆时针消除) 若消除直接进入下一个循环
-		auto point2s = mainPoints.Stream([](const Point4& point4) {
-			return point4.ToPoint3().GetPoint2();
-		});
-		if (BackCulling(point2s)) {
+		if (BackCulling(mainPoints)) {
 			continue;
 		}
 		auto mainPointsW = mainPoints.Stream([](const Point4& p) {
@@ -330,7 +328,10 @@ Color RGBColorToColor(RGBColor c) {
 	};
 }
 
-bool BackCulling(Array<Point2, 3> points) {
+bool BackCulling(Array<Point4, 3> triangle) {
+	auto points = triangle.Stream([](Point4 point) {
+		return Point4{point.x, point.y, point.z, abs(point.w)}.ToPoint3().GetPoint2();
+	});
 	/*
 		计算向量 k 的方向
 		g等于行列式

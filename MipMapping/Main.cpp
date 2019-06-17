@@ -27,15 +27,18 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance,
 	textureCoodinates.push_back({1.0f, 1.0f});
 	textureCoodinates.push_back({1.0f, 0.0f});
 
-	vector<array<RGBImage, 7>> textures;
-	textures.emplace_back(array<RGBImage, 7>{
-		display.GetImage(L"../level0.PNG"),
-		display.GetImage(L"../level1.PNG"),
-		display.GetImage(L"../level2.PNG"),
-		display.GetImage(L"../level3.PNG"),
-		display.GetImage(L"../level4.PNG"),
-		display.GetImage(L"../level5.PNG"),
-		display.GetImage(L"../level6.PNG")
+	vector<array<RGBImage, 10>> textures;
+	textures.emplace_back(array<RGBImage, 10>{
+		display.GetImage(L"../level0.png"),
+		display.GetImage(L"../level1.png"),
+		display.GetImage(L"../level2.png"),
+		display.GetImage(L"../level3.png"),
+		display.GetImage(L"../level4.png"),
+		display.GetImage(L"../level5.png"),
+		display.GetImage(L"../level6.png"),
+		display.GetImage(L"../level7.png"),
+		display.GetImage(L"../level8.png"),
+		display.GetImage(L"../level9.png")
 	});
 
 	vector<TextureIndexData> indexDatas;
@@ -85,39 +88,53 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance,
 		auto light = Point3{5.0f, 5.0f, -1.0};
 		auto camera = Point3{0.0f, 0.0f, 0.0f};
 
-		auto vertexShader = [&](Point3 point, Point2 textureCoodinate, const array<RGBImage, 7> & normal) {
+		auto vertexShader = [&](Point3 point, Point2 textureCoodinate, const array<RGBImage, 10> & normal) {
 			return matrix * point.ToPoint4();
 		};
 
-		auto pixelShader = [&](Point4 point4, Point2 textureCoodinate, const array<RGBImage, 7> & texture) {
-		    /*
+		auto pixelShader = [&](Point4 point4, Point2 textureCoodinate, const array<RGBImage, 10> & texture) {
+		    /*  
 				使用三线性滤波
+				图形API实现和这里不一样 用框定的范围来确定 level = log2(D) D代表像素范围映射至纹理范围ΔU ΔV中的最大值
+				所以也无法实现各项异性过滤器
+
+				所以这里用类似的方法处理
+				这里使用z轴比例来确定 会在平面垂直于相机平面 出现较大失真
+				但是在平面平行相机平面的 时候效果不错
+
 				透视会压缩其次空间的z轴 z轴非线性
-				相机空间为Z 齐次空间为Z'
-				透视会将 Z => Z' 这里需要将 Z' => Z 并压缩至 [0,1] 然后 映射至 [level - 1,0]
-				有两种方案
-					  逆透视          平移           线性压缩        线性映射
-				[0,1] ======> [n,f] ======> [0,f-n] =======> [0,1] ========> [level - 1,0]
-					  逆透视              直接压缩                   线性映射  (C是个比较小的数 不会等于0)
-				[0,1] ======> [n,f] =====================> [n/f,1] ========> [level - 1 + C,0]
-				这里采用第二种
+					  逆透视         归一化             log处理                得到等级
+				[0,1] ======> [n,f] ========> [1,f/n] =======> [0,log2(f/n)] =======>[0,levelMax]
+				这里的纹理等级是反过来的 level0 是分辨率最高的 level9 是最低的
+				level = log2((Pn/P0)*X)
+				Pn是 近平面需求的分辨率 因为图片采用双线性滤波 所以需求2倍
+				p0是level0 的分辨率
+				X 是距离相机的距离
+				
+				意义是 在 level 取整数时 所对应的平面 分辨率是完美的 采样不失真
+
+				注意这里和透视矩阵的参数有关 默认b = -1 t = 1时 如果不是需要比例缩放
 			*/
-			float levelMax = 6.0f;
+			float levelMax = 9.0f;
+			float pn = 600.0f * 2.0f;
+			float p0 = 1024.0f;
 			float z = point4.z / point4.w;
-			float newZ = n / (f - ((f - n) * z));
-			float levelLine = -levelMax * newZ + levelMax;
-			//低一级的纹理和高一级的纹理系数
-			float low = levelLine - floor(levelLine);
-			float high = ceil(levelLine) - levelLine;
+			//返回线性
+			float newZ = f / (f - ((f - n) * z));
+			float logZ = log2((pn / p0) * newZ);
+			float logLevelLine = std::clamp(logZ, 0.0f, levelMax);
 			//纹理等级
-			int lowLevel = static_cast<int>(floor(levelLine));
-			int highLevel = lowLevel + 1;
-			return (texture[lowLevel].BilinearFiltering(textureCoodinate) * low)
-				+ (texture[highLevel].BilinearFiltering(textureCoodinate) * high);
+			int logLowLevel = static_cast<int>(floor(logLevelLine));
+			int logHighLevel = std::clamp(logLowLevel + 1, 0, static_cast<int>(levelMax));
+			//低一级的纹理和高一级的纹理系数
+			float high = logLevelLine - floor(logLevelLine);
+			float low = 1.0f - high;
+			return (texture[logLowLevel].BilinearFiltering(textureCoodinate) * low)
+				+ (texture[logHighLevel].BilinearFiltering(textureCoodinate) * high);
 		};
 
-		renderer.DrawTriangleByTexture<array<RGBImage, 7>>(points, textureCoodinates, textures,
-												   indexDatas, vertexShader, pixelShader);
+		renderer.DrawTriangleByTexture<array<RGBImage, 10>>(points, textureCoodinates, textures,
+															indexDatas, vertexShader, pixelShader);
 
 		return renderer.GenerateImage();
 	});
