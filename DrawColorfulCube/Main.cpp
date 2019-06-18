@@ -4,6 +4,8 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance,
 					_In_ LPWSTR lpCmdLine, _In_ int nShowCmd) {
 	constexpr int width = 800;
 	constexpr int height = 600;
+	constexpr float aspect = static_cast<float>(width) / static_cast<float>(height);
+
 	Display display(width, height);
 	Renderer renderer(width, height);
 
@@ -47,17 +49,19 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance,
 	indexDatas.push_back({{7, 6, 5}, {7, 6, 5}});
 	indexDatas.push_back({{7, 5, 4}, {7, 5, 4}});
 	
-	float x = 0.7f;
-	float y = 0.5f;
+	float x = 0.0f;
+	float y = 0.0f;
 
 	display.Update([&]() {
 		renderer.Clear();
 		x += 0.007f;
 		y += 0.005f;
+		//这里设定好可以被近平面剪裁 可以看到背面剔除效果
+		auto per = PerspectiveByAspect(1.0f, 2.0f, aspect);
 		auto rotate = RotateX(x) * RotateY(y);
-		auto move = Move({0.0f, 0.0f, 0.35f});
-		auto scale = Scale(0.3f, 0.3f, 0.3f);
-		auto matrix = move * rotate * scale;
+		auto move = Move({0.0f, 0.0f, 1.6f});
+		auto scale = Scale(0.5f, 0.5f, 0.5f);
+		auto matrix = per * move * rotate * scale;
 
 		renderer.DrawTriangleByColor(points, colors, indexDatas, [&](Point3 p) {
 			return matrix * p.ToPoint4();

@@ -50,14 +50,6 @@ RGBColor ColorToRGBColor(Color c);
 Color RGBColorToColor(RGBColor c);
 
 /*
-    这里传入的是Point4 中的 x y 生成的point2 
-	在透视矩阵处理后 x y 正负不改变 
-    顺时针不消除 逆时针消除
-	消除返回true
-*/
-bool BackCulling(Array<Point4, 3> points);
-
-/*
 	远近平面两次剪裁后最多得到4个三角形
 */
 MaxCapacityArray<Array<Point4, 3>, 4> TriangleNearAndFarClip(const Array<Point4, 3> & points);
@@ -182,8 +174,15 @@ private:
 void HandleLine(int width, int height, Array<Point2, 2> line,
 				function<void(int, int)> func);
 //画三角形像素
-void HandleTriangle(int width, int height, Array<Point4, 3> mainPoints, Array<Point4, 3> points,
+void HandleTriangle(int width, int height, Array<Point4, 3> points,
 					function<void(int, int, Array<float, 3>)> howToUseCoefficient);
+
+
+/*
+	顺时针不消除 逆时针消除
+	消除返回true
+*/
+bool BackCulling(Array<Point4, 3> points);
 
 /*
 	超平面剪裁 Ax + By + Cz + Dw = 0
@@ -218,9 +217,9 @@ Point4 ComputePlanePoint(Vector4 vector, Array<Point4, 2> points);
 Array<float, 3> ComputeCenterCoefficient(Point2 point, Array<Point2, 3> points);
 
 /*
-	重心计算颜色
+	重心计算颜色 这个是根据w算的 不是直接重心计算
 */
-Color ComputerCenterColor(Array<float, 3> coefficients, Array<Color, 3> colors);
+Color ComputerCenterColor(Array<float, 3> coefficients, Array<Color, 3> colors, Array<float,3> pointW);
 
 /*
 	重心计算顶点
@@ -233,6 +232,7 @@ Point4 ComputeCenterPoint(Array<float, 3> coefficients, Array<Point4, 3> points)
 Point2 ComputeCenterTextureCoordinate(Array<float, 3> coefficients,
 									  Array<Point2, 3> textureCoordinates,
 									  Array<float, 3> pointW);
+
 /*
 	获取一个像素的宽度
 */
@@ -281,6 +281,118 @@ int PixelToIndex(int x, int y, int width);
 */
 int ReversePixelToIndex(int x, int y, int width, int height);
 
+/*
+	三角形近平面剪裁和背面消除 
+	Color 和 纹理坐标可以用一样的逻辑 这里设置成模板
+*/
+template<typename TriangleData>
+MaxCapacityArray<std::pair<Array<Point4, 3>, Array<TriangleData, 3>>, 2> TriangleNearClipAndBackCulling(
+	Array<Point4, 3> points, Array<TriangleData, 3> triangleDatas) {
+	//近平面
+	constexpr Vector4 nearPlane{0.0f, 0.0f, -1.0f, 0.0f};
+	auto pointColors = ArrayIndex<3>().Stream([&](int i) {
+		return std::pair{std::pair{points[i], triangleDatas[i]}, 0.0f};
+	});
+	//获得和近平面的距离
+	for (auto& pointColor : pointColors) {
+		pointColor.second = pointColor.first.first.GetVector4FormOrigin().Dot(nearPlane);
+	}
+	/*
+		因为顶点需要排序 得到对应顺序后剪裁
+		每次进行一次交换 代表三角形顶点顺时针逆时针将会转变
+		一个三角形最多需要交换三次顶点
+		可以根据距离排好序
+		根据4种情况推导出来 !(BackCulling(triangle) ^ reverse) 可以确定是否需要绘制
+	*/
+	bool reverse = false;
+	if (pointColors[2].second < pointColors[1].second) {
+		std::swap(pointColors[2], pointColors[1]);
+		reverse = !reverse;
+	}
+	if (pointColors[1].second < pointColors[0].second) {
+		std::swap(pointColors[1], pointColors[0]);
+		reverse = !reverse;
+	}
+	if (pointColors[2].second < pointColors[1].second) {
+		std::swap(pointColors[2], pointColors[1]);
+		reverse = !reverse;
+	}
+	//可视空间方向的点
+	int pointCount = static_cast<int>(std::count_if(pointColors.begin(), pointColors.end(), [](auto& pointBool) {
+		return pointBool.second <= 0.0f;
+	}));
+	//需要返回的数据
+	MaxCapacityArray<std::pair<Array<Point4, 3>, Array<TriangleData, 3>>, 2> returnArray;
+	Point4 point0 = pointColors[0].first.first;
+	Point4 point1 = pointColors[1].first.first;
+	Point4 point2 = pointColors[2].first.first;
+	TriangleData color0 = pointColors[0].first.second;
+	TriangleData color1 = pointColors[1].first.second;
+	TriangleData color2 = pointColors[2].first.second;
+	if (pointCount == 1) {
+		/*
+					   *Point0
+					   |\   newPoint2
+		  _____________|_\↙______________
+			newPoint1↗|  \
+					   |  /Point1
+					   | /
+					   |/
+					   *Point2
+		*/
+		Point4 newPoint1 = ComputePlanePoint(nearPlane, {point0, point2});
+		Point4 newPoint2 = ComputePlanePoint(nearPlane, {point0, point1});
+		float t1 = (newPoint1.w - point0.w) / (point2.w - point0.w);
+		float t2 = (newPoint2.w - point0.w) / (point1.w - point0.w);
+		TriangleData newColor1 = color0 * (1.0f - t1) + color2 * t1;
+		TriangleData newColor2 = color0 * (1.0f - t2) + color1 * t2;
+		Array<Point4, 3> trianglePoint{point0, newPoint2, newPoint1};
+		Array<TriangleData, 3> triangleColor{color0, newColor2, newColor1};
+		//替换成剪裁后的点 不改变顺序
+		Array<Point4, 3> testBackCull{point0, newPoint2, newPoint1};
+		if (!(BackCulling(testBackCull) ^ reverse)) {
+			returnArray.Push({trianglePoint, triangleColor});
+		}
+	} else if (pointCount == 2) {
+		/*
+					   * Point0
+					   |\
+					   | \
+					   |  \ Point1
+			___________|__/_______________
+					 ↗| /↖
+			newPoint1  |/   newPoint2
+					   *Point2
+		*/
+		Point4 newPoint1 = ComputePlanePoint(nearPlane, {point0, point2});
+		Point4 newPoint2 = ComputePlanePoint(nearPlane, {point1, point2});
+		float t1 = (newPoint1.w - point0.w) / (point2.w - point0.w);
+		float t2 = (newPoint2.w - point1.w) / (point2.w - point1.w);
+		TriangleData newColor1 = color0 * (1.0f - t1) + color2 * t1;
+		TriangleData newColor2 = color1 * (1.0f - t2) + color2 * t2;
+		Array<Point4, 3> trianglePointA{point0, point1, newPoint2};
+		Array<TriangleData, 3> triangleColorA{color0, color1, newColor2};
+		Array<Point4, 3> trianglePointB{point0, newPoint2, newPoint1};
+		Array<TriangleData, 3> triangleColorB{color0, newColor2, newColor1};
+		//替换成剪裁后的点 不改变顺序
+		Array<Point4, 3> testBackCull{point0, point1, newPoint2};
+		if (!(BackCulling(testBackCull) ^ reverse)) {
+			returnArray.Push({trianglePointA, triangleColorA});
+			returnArray.Push({trianglePointB, triangleColorB});
+		}
+	} else if (pointCount == 3) {
+		Array<Point4, 3> trianglePoint{point0, point1, point2};
+		Array<TriangleData, 3> triangleColor{color0, color1, color2};
+		if (!(BackCulling(trianglePoint) ^ reverse)) {
+			returnArray.Push({trianglePoint, triangleColor});
+		}
+	} else {
+		//pointCount == 0
+		//没有三角形要添加
+	}
+	return returnArray;
+}
+
 template<typename Texture>
 inline void Renderer::DrawTriangleByTexture(const vector<Point3>& points,
 											const vector<Point2>& textureCoordinates,
@@ -306,24 +418,22 @@ inline void Renderer::DrawTriangleByTexture(const vector<Point3>& points,
 		auto mainTextureCoodinates = ArrayIndex<3>().Stream([&](int i) {
 			return textureCoordinates[data.textureCoordinateIndex[i]];
 		});
-		//背面消除(逆时针消除) 若消除直接进入下一个循环
-		if (BackCulling(mainPoints)) {
-			continue;
-		}
-		auto mainPointsW = mainPoints.Stream([](const Point4& p) {
-			return p.w;
-		});
-		//远近平面剪裁 最多剪裁出4个三角形
-		auto trianglePoints = TriangleNearAndFarClip(mainPoints);
+		//近平面剪裁并且背面消除 由于顶点顺序原因需要放在一起
+		auto trianglePoints = TriangleNearClipAndBackCulling<Point2>(mainPoints, mainTextureCoodinates);
 		//得到纹理坐标
 		for (auto& trianglePoint : trianglePoints) {
+			auto triangleP = trianglePoint.first;
+			auto triangleT = trianglePoint.second;
+			auto triangleW = triangleP.Stream([](Point4 p) {
+				return p.w;
+			});
 			//光栅化阶段
-			HandleTriangle(width, height, mainPoints, trianglePoint, [&](int x, int y, Array<float, 3> coefficent) {
-				auto point = ComputeCenterPoint(coefficent, mainPoints);
+			HandleTriangle(width, height, triangleP, [&](int x, int y, Array<float, 3> coefficent) {
+				auto point = ComputeCenterPoint(coefficent, triangleP);
 				//判断深度
 				float depth = point.ToPoint3().z;
 				if (InScreenZ(depth)) {
-					Point2 textureCoodinate = ComputeCenterTextureCoordinate(coefficent, mainTextureCoodinates, mainPointsW);
+					Point2 textureCoodinate = ComputeCenterTextureCoordinate(coefficent, triangleT, triangleW);
 					Color color = pixelShader(point, textureCoodinate, texture);
 					DrawZBuffer(x, y, depth, ColorToRGBColor(color));
 				}

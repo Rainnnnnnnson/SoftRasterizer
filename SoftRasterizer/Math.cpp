@@ -37,6 +37,10 @@ Matrix4X4 Move(Vector3 direction) {
 	};
 }
 
+Matrix4X4 PerspectiveByAspect(float n, float f, float aspect) {
+	return Perspective(n, f, -aspect, aspect, -1.0f, 1.0f);
+}
+
 Matrix4X4 Perspective(float n, float f, float l, float r, float b, float t) {
 	return Matrix4X4{
 		(2.0f * n) / (r - l), 0.0f, -(r + l) / (r - l), 0.0f,
@@ -81,6 +85,14 @@ Matrix4X4 RotateZ(float r) {
 
 bool Point2::operator==(const Point2& p) const {
 	return x == p.x && y == p.y;
+}
+
+Point2 Point2::operator*(float f) const {
+	return {x * f, y * f};
+}
+
+Point2 Point2::operator+(const Point2& p) const {
+	return {x + p.x, y + p.y};
 }
 
 Vector3 Point3::operator-(const Point3& p) const {
@@ -309,7 +321,7 @@ Color Color::operator*(float f) const {
 	return Color{r * f, g * f, b * f};
 }
 
-float Vector4::operator*(const Vector4& v) const {
+float Vector4::Dot(const Vector4& v) const {
 	return x * v.x + y * v.y + z * v.z + w * v.w;
 }
 

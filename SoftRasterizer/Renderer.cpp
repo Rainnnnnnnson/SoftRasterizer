@@ -1,5 +1,4 @@
 #include "Renderer.h"
-
 //============================================
 
 RGBImage::RGBImage(int width, int height) : width(width), height(height),
@@ -72,7 +71,7 @@ Color RGBImage::BilinearFiltering(Point2 p) const {
 //================================================================================================================
 
 //在清空状态深度储存为1.0f
-constexpr float clearDepth = 1.0f;
+constexpr float clearDepth = 2.0f;
 //清空屏幕时为黑色
 constexpr RGBColor black = {0, 0, 0};
 
@@ -120,23 +119,24 @@ void Renderer::DrawTriangleByColor(const vector<Point3>& points,
 		auto mainColors = ArrayIndex<3>().Stream([&](std::size_t i) {
 			return colors[data.colorIndex[i]];
 		});
-		//背面消除(逆时针消除) 若消除直接进入下一个循环
 		if (BackCulling(mainPoints)) {
 			continue;
 		}
-		auto mainPointsW = mainPoints.Stream([](const Point4& p) {
-			return p.w;
-		});
-		//远近平面剪裁
-		auto trianglePoints = TriangleNearAndFarClip(mainPoints);
-		for (auto& points : trianglePoints) {
+		//近平面剪裁
+		auto trianglePointColors = TriangleNearClipAndBackCulling<Color>(mainPoints, mainColors);
+		for (auto& pointColors : trianglePointColors) {
+			auto trianglePoints = pointColors.first;
+			auto triangleColors = pointColors.second;
 			//光栅化阶段
-			HandleTriangle(width, height, mainPoints, points, [&](int x, int y, Array<float, 3> coefficients) {
-				auto point = ComputeCenterPoint(coefficients, mainPoints);
+			auto trianglePointW = trianglePoints.Stream([](Point4 point4) {
+				return point4.w;
+			});
+			HandleTriangle(width, height, trianglePoints, [&](int x, int y, Array<float, 3> coefficients) {
+				auto point = ComputeCenterPoint(coefficients, trianglePoints);
 				//判断深度
 				float depth = point.ToPoint3().z;
 				if (InScreenZ(depth)) {
-					Color color = ComputerCenterColor(coefficients, mainColors);
+					Color color = ComputerCenterColor(coefficients, triangleColors, trianglePointW);
 					DrawZBuffer(x, y, depth, ColorToRGBColor(color));
 				}
 			});
@@ -175,7 +175,9 @@ void Renderer::DrawZBuffer(int x, int y, float z, RGBColor color) {
 	assert(InPixelXY(x, y, width, height));
 	assert(InScreenZ(z));
 	int index = ReversePixelToIndex(x, y, width, height);
-	zBuffer[index] = {z, color};
+	if (z < zBuffer[index].first) {
+		zBuffer[index] = {z, color};
+	}
 }
 
 void Renderer::DrawWritePixel(int x, int y) {
@@ -255,7 +257,7 @@ void HandleLine(int width, int height, Array<Point2, 2> points,
 	}
 }
 
-void HandleTriangle(int width, int height, Array<Point4, 3> mainPoints, Array<Point4, 3> points,
+void HandleTriangle(int width, int height, Array<Point4, 3> points,
 					function<void(int, int, Array<float, 3>)> howToUseCoefficient) {
 	assert(std::all_of(points.begin(), points.end(), [&](Point4 p) {
 		return p.w != 0.0f;
@@ -275,8 +277,8 @@ void HandleTriangle(int width, int height, Array<Point4, 3> mainPoints, Array<Po
 	int xMin = std::max(ScreenToPixel(xValue[0], width), 0);
 	int yMax = std::min(ScreenToPixel(yValue[2], height), height - 1);
 	int yMin = std::max(ScreenToPixel(yValue[0], height), 0);
-	//最大的三角形
-	auto screenMainPoints = mainPoints.Stream([](const Point4& p) {
+	//屏幕上的三角形
+	auto screenPoints = points.Stream([](const Point4& p) {
 		return p.ToPoint3().GetPoint2();
 	});
 	//循环限定矩形 [xMin,xMax] * [yMin,yMax]
@@ -285,7 +287,7 @@ void HandleTriangle(int width, int height, Array<Point4, 3> mainPoints, Array<Po
 			//每一个需要绘制的屏幕上的点
 			Point2 point{PixelToScreen(xIndex, width), PixelToScreen(yIndex, height)};
 			//计算重心系数
-			auto coefficients = ComputeCenterCoefficient(point, screenMainPoints);
+			auto coefficients = ComputeCenterCoefficient(point, screenPoints);
 			//在三角形内部
 			bool inTriangle = std::all_of(coefficients.begin(), coefficients.end(), [](float f) {
 				return f > 0.0f;
@@ -329,26 +331,18 @@ Color RGBColorToColor(RGBColor c) {
 }
 
 bool BackCulling(Array<Point4, 3> triangle) {
+	//原始的点 经过拉伸
 	auto points = triangle.Stream([](Point4 point) {
-		return Point4{point.x, point.y, point.z, abs(point.w)}.ToPoint3().GetPoint2();
+		return point.ToPoint3();
 	});
-	/*
-		计算向量 k 的方向
-		g等于行列式
-
-		i  j  k
-		x1 y1 0
-		x2 y2 0
-	*/
-	float x1 = points[1].x - points[0].x;
-	float y1 = points[1].y - points[0].y;
-	float x2 = points[2].x - points[1].x;
-	float y2 = points[2].y - points[1].y;
-	float g = x1 * y2 - y1 * x2;
-	if (g >= 0.0f) {
-		return true;
+	Vector3 BA = points[1] - points[0];
+	Vector3 CB = points[2] - points[1];
+	Vector3 cross = BA.Cross(CB);
+	Vector3 z{0.0f, 0.0f, 1.0f};
+	if ((cross.Dot(z)) < 0.0f) {
+		return false;
 	}
-	return false;
+	return true;
 }
 
 bool ScreenLineClip(Array<Point2, 2> & points) {
@@ -438,14 +432,13 @@ bool ScreenLineEqual(Array<Point2, 2> pointsA, Array<Point2, 2> pointsB) {
 	return false;
 }
 
-//返回与两点直线在平面上的交点
 Point4 ComputePlanePoint(Vector4 N, Array<Point4,2> points) {
 	//计算两点与平面的系数t
 	//这里扩展到四维 方法和三维一样
 	//N[P0 + t(P1 - P0)] = 0
 	// t = - (N * P0) / (N * (P1 - P0))
 	Vector4 vector4 = points[1] - points[0];
-	float t = -(N * points[0].GetVector4FormOrigin()) / (N * vector4);
+	float t = -(N.Dot(points[0].GetVector4FormOrigin())) / (N.Dot(vector4));
 	Point4 p = points[0] + (vector4 * t);
 	return p;
 }
@@ -472,7 +465,7 @@ MaxCapacityArray<Array<Point4, 3>, 2> TriangleClip(Vector4 vector4, const Array<
 	});
 	//带入超平面得到梯度方向的距离 
 	for (auto& pointBool : pointBools) {
-		pointBool.second = pointBool.first.GetVector4FormOrigin() * vector4;
+		pointBool.second = pointBool.first.GetVector4FormOrigin().Dot(vector4);
 	}
 	//根据距离排序
 	std::sort(pointBools.begin(), pointBools.end(), [](auto& pointBool1, auto& pointBool2) {
@@ -553,10 +546,22 @@ Array<float, 3> ComputeCenterCoefficient(Point2 point, Array<Point2, 3> points) 
 	return {alpha, beta, gamma};
 }
 
-Color ComputerCenterColor(Array<float, 3> coefficients, Array<Color, 3> colors) {
-	return ArrayIndex<3>().Stream([&](int i) {
-		return colors[i] * coefficients[i];
+Color ComputerCenterColor(Array<float, 3> coefficients, 
+						  Array<Color, 3> colors,
+						  Array<float, 3> pointW) {
+	float screenR = ArrayIndex<3>().Stream([&](int i) {
+		return coefficients[i] * (colors[i].r / pointW[i]);
 	}).Sum();
+	float screenG = ArrayIndex<3>().Stream([&](int i) {
+		return coefficients[i] * (colors[i].g / pointW[i]);
+	}).Sum();
+	float screenB = ArrayIndex<3>().Stream([&](int i) {
+		return coefficients[i] * (colors[i].b / pointW[i]);
+	}).Sum();
+	float screenOne = ArrayIndex<3>().Stream([&](int i) {
+		return coefficients[i] * (1.0f / pointW[i]);
+	}).Sum();
+	return {screenR / screenOne, screenG / screenOne, screenB / screenOne};
 }
 
 Point4 ComputeCenterPoint(Array<float, 3> coefficients, Array<Point4, 3> points) {

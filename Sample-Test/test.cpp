@@ -41,7 +41,7 @@ TEST(LittleFunction, EdgeTest) {
 TEST(BackCulling, Test1) {
 	auto per = Perspective(1.0f, 2.0f, -1.0f, 1.0f, -1.0f, 1.0f);
 	auto points = Array<Point3, 3>{
-		{0.0f, 1.0f, -2.0f}, {-1.0f, -1.0f, 1.0f}, {1.0f, -1.0f, 6.0f}
+		{0.0f, 1.0f, 2.0f}, {-1.0f, -1.0f, 1.0f}, {1.0f, -1.0f, 6.0f}
 	}.Stream([&](const Point3& p) {
 		return per * p.ToPoint4();
 	});
@@ -50,20 +50,9 @@ TEST(BackCulling, Test1) {
 }
 
 TEST(BackCulling, Test2) {
-	//这里说明了不能直接对透视的顶点进行背面消除
 	auto per = Perspective(1.0f, 2.0f, -1.0f, 1.0f, -1.0f, 1.0f);
 	auto points = Array<Point3, 3>{
-		{-1.0, -2.0f, -1.0f}, {-1.0f, 1.0f, 1.0f}, {1.0f, 1.0f, 2.0f}
-	}.Stream([&](const Point3& p) {
-		return per * p.ToPoint4();
-	});
-	EXPECT_FALSE(BackCulling(points));
-}
-
-TEST(BackCulling, Test3) {
-	auto per = Perspective(1.0f, 2.0f, -1.0f, 1.0f, -1.0f, 1.0f);
-	auto points = Array<Point3, 3>{
-		{-1.0, 1.0f, -1.5f}, {0.0f, 0.0f, -1.0f}, {1.0f, 0.0f, 0.5f}
+		{-1.0, 1.0f, 1.5f}, {0.0f, 0.0f, 1.0f}, {1.0f, 0.0f, 0.5f}
 	}.Stream([&](const Point3& p) {
 		return per * p.ToPoint4();
 	});
@@ -426,4 +415,70 @@ TEST(Camera, Test) {
 	EXPECT_EQ(point.x, 0.0f);
 	EXPECT_EQ(point.y, 3.0f);
 	EXPECT_EQ(point.z, 1.0f);
+}
+
+TEST(TriangleNearClipAndBackCulling, Test) {
+	auto per = Perspective(1.0f, 2.0f, -1.0f, 1.0f, -1.0f, 1.0f);
+	auto basePoints = Array<Point4, 3>{
+		{-2.0f, 1.0f, 2.0f, 1.0f}, {2.0f, 0.0f, 2.0f, 1.0f}, {-2.0f, -1.0f, -2.0f, 1.0f}
+	}.Stream([&](Point4 p) {
+		return per * p;
+	});
+	auto baseCoodinates = Array<Point2, 3>{
+		{0.0f, 1.0f}, {1.0f, 1.0f}, {0.0f, 0.0f}
+	};
+	auto triangles = TriangleNearClipAndBackCulling<Point2>(basePoints, baseCoodinates);
+	EXPECT_EQ(triangles.Size(), 2);
+	auto points = triangles[0].first.Stream([](Point4 p) {
+		return p.ToPoint3();
+	});
+	auto coodinates = triangles[0].second;
+	EXPECT_EQ(points[0].x, -1.0f);
+	EXPECT_EQ(points[0].y, 0.5f);
+	EXPECT_EQ(points[0].z, 1.0f);
+	
+	EXPECT_EQ(points[1].x, 1.0f);
+	EXPECT_EQ(points[1].y, 0.0f);
+	EXPECT_EQ(points[1].z, 1.0f);
+
+	EXPECT_EQ(points[2].x, 1.0f);
+	EXPECT_EQ(points[2].y, -0.25f);
+	EXPECT_EQ(points[2].z, 0.0f);
+
+	EXPECT_EQ(coodinates[0].x, 0.0f);
+	EXPECT_EQ(coodinates[0].y, 1.0f);
+
+	EXPECT_EQ(coodinates[1].x, 1.0f);
+	EXPECT_EQ(coodinates[1].y, 1.0f);
+
+	EXPECT_EQ(coodinates[2].x, 0.75f);
+	EXPECT_EQ(coodinates[2].y, 0.75f);
+
+	//第二个三角形
+	points = triangles[1].first.Stream([](Point4 p) {
+		return p.ToPoint3();
+	});
+	coodinates = triangles[1].second;
+	EXPECT_EQ(points[0].x, -1.0f);
+	EXPECT_EQ(points[0].y, 0.5f);
+	EXPECT_EQ(points[0].z, 1.0f);
+
+	EXPECT_EQ(points[1].x, 1.0f);
+	EXPECT_EQ(points[1].y, -0.25f);
+	EXPECT_EQ(points[1].z, 0.0f);
+
+	EXPECT_EQ(points[2].x, -2.0f);
+	EXPECT_EQ(points[2].y, 0.5f);
+	EXPECT_EQ(points[2].z, 0.0f);
+
+
+	EXPECT_EQ(coodinates[0].x, 0.0f);
+	EXPECT_EQ(coodinates[0].y, 1.0f);
+
+	EXPECT_EQ(coodinates[1].x, 0.75f);
+	EXPECT_EQ(coodinates[1].y, 0.75f);
+
+	EXPECT_EQ(coodinates[2].x, 0.0f);
+	EXPECT_EQ(coodinates[2].y, 0.75f);
+
 }

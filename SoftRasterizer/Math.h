@@ -14,6 +14,8 @@ float ComputeLineEquation(Point2 p, Point2 p0, Point2 p1);
 struct Point2 {
 	float x, y;
 	bool operator== (const Point2& p) const;
+	Point2 operator*(float f) const;
+	Point2 operator+(const Point2& p) const;
 };
 
 struct Point3 {
@@ -57,7 +59,7 @@ struct Vector3 {
 
 struct Vector4 {
 	float x, y, z, w;
-	float operator*(const Vector4& v) const;
+	float Dot(const Vector4& v) const;
 	Vector4 operator*(float f) const;
 };
 
@@ -85,6 +87,7 @@ struct Matrix4X4 {
 Matrix4X4 CameraLookTo(Point3 eye, Vector3 direction, Vector3 up);
 Matrix4X4 Scale(float x, float y, float z);
 Matrix4X4 Move(Vector3 direction);
+Matrix4X4 PerspectiveByAspect(float n, float f, float aspect);
 Matrix4X4 Perspective(float n, float f, float l, float r, float b, float t);
 Matrix4X4 RotateX(float radian);
 Matrix4X4 RotateY(float radian);

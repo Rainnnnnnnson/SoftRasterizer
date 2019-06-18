@@ -120,6 +120,17 @@ public:
 	const Type* end() const {
 		return &elements[0] + size;
 	}
+
+	Type& operator[](std::size_t pos) {
+		assert(pos < size);
+		return elements[pos];
+	}
+
+	const Type& operator[](std::size_t pos) const {
+		assert(pos < size);
+		return elements[pos];
+	}
+
 private:
 	std::array<Type, capacity> elements;
 	std::size_t size;
