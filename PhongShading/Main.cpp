@@ -4,6 +4,8 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance,
 					_In_ LPWSTR lpCmdLine, _In_ int nShowCmd) {
 	constexpr int width = 800;
 	constexpr int height = 600;
+	float aspect = static_cast<float>(width) / static_cast<float>(height);
+
 	Display display(width, height);
 
 	Renderer renderer(width, height);
@@ -58,10 +60,9 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance,
 	indexDatas.push_back({{7, 6, 5}, {0, 1, 2}, 5});
 	indexDatas.push_back({{7, 5, 4}, {0, 2, 3}, 5});
 
-	float aspect = static_cast<float>(width) / static_cast<float>(height);
 	float x = 0.7f;
 	float y = 0.5f;
-	auto perspective = Perspective(1.0f, 100.0f, -aspect, aspect, -1.0f, 1.0f);
+	auto perspective = PerspectiveByAspect(1.0f, 100.0f, aspect);
 	auto inverse = perspective.Inverse();
 
 	display.Update([&]() {
