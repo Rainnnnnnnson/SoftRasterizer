@@ -104,7 +104,7 @@ RGBImage Renderer::GenerateImage() const {
 void Renderer::DrawTriangleByColor(const vector<Point3>& points,
 								   const vector<Color>& colors,
 								   const vector<ColorIndexData>& indexDatas,
-								   function<Point4(Point3)> vertexShader) {
+								   const function<Point4(Point3)>& vertexShader) {
 	for (auto& data : indexDatas) {
 		assert(std::all_of(data.pointIndex.begin(), data.pointIndex.end(), [&](unsigned i) {
 			return i < points.size();
@@ -146,7 +146,7 @@ void Renderer::DrawTriangleByColor(const vector<Point3>& points,
 
 void Renderer::DrawTriangleByWireframe(const vector<Point3>& points,
 									   const vector<WireframeIndexData>& indexDatas,
-									   function<Point4(Point3)> vertexShader) {
+									   const function<Point4(Point3)>& vertexShader) {
 	for (auto& data : indexDatas) {
 		assert(std::all_of(data.pointIndex.begin(), data.pointIndex.end(), [&](unsigned i) {
 			return i < points.size();
@@ -226,8 +226,8 @@ void DrawLineByMiddlePoint(Array<Point2, 2> points, int width, int height, funct
 	}
 }
 
-void HandleLine(int width, int height, Array<Point2, 2> points,
-				function<void(int, int)> func) {
+void HandleLine(int width, int height,const Array<Point2, 2>& points,
+				const function<void(int, int)>& func) {
 	//这里乘以图片比例主要是因为图片比例会导致k > 1 或者 k < -1的情况 画线不正确
 	//中点算法一次只能上升或者下降一格像素 当K > 1时 只能取K == 1 (K<-1 同理)
 	float y = (points[1].y - points[0].y) * static_cast<float>(height);
@@ -257,8 +257,8 @@ void HandleLine(int width, int height, Array<Point2, 2> points,
 	}
 }
 
-void HandleTriangle(int width, int height, Array<Point4, 3> points,
-					function<void(int, int, Array<float, 3>)> howToUseCoefficient) {
+void HandleTriangle(int width, int height,const Array<Point4, 3>& points,
+					const function<void(int, int, Array<float, 3>)>& howToUseCoefficient) {
 	assert(std::all_of(points.begin(), points.end(), [&](Point4 p) {
 		return p.w != 0.0f;
 	}));
@@ -330,7 +330,7 @@ Color RGBColorToColor(RGBColor c) {
 	};
 }
 
-bool BackCulling(Array<Point4, 3> triangle) {
+bool BackCulling(const Array<Point4, 3>& triangle) {
 	//原始的点 经过拉伸
 	auto points = triangle.Stream([](Point4 point) {
 		return point.ToPoint3();
@@ -423,7 +423,7 @@ bool ScreenLineClip(Array<Point2, 2> & points) {
 	return true;
 }
 
-bool ScreenLineEqual(Array<Point2, 2> pointsA, Array<Point2, 2> pointsB) {
+bool ScreenLineEqual(const Array<Point2, 2>& pointsA,const Array<Point2, 2>& pointsB) {
 	//不对应
 	if (((pointsA[0] == pointsB[0]) && (pointsA[1] == pointsB[1])) ||
 		((pointsA[0] == pointsB[1]) && (pointsA[1] == pointsB[0]))) {
@@ -432,7 +432,7 @@ bool ScreenLineEqual(Array<Point2, 2> pointsA, Array<Point2, 2> pointsB) {
 	return false;
 }
 
-Point4 ComputePlanePoint(Vector4 N, Array<Point4,2> points) {
+Point4 ComputePlanePoint(Vector4 N, const Array<Point4,2>& points) {
 	//计算两点与平面的系数t
 	//这里扩展到四维 方法和三维一样
 	//N[P0 + t(P1 - P0)] = 0
@@ -536,7 +536,7 @@ MaxCapacityArray<Array<Point2, 2>, 9> GetNotRepeatingScreenLines(const MaxCapaci
 	return returnLines;
 }
 
-Array<float, 3> ComputeCenterCoefficient(Point2 point, Array<Point2, 3> points) {
+Array<float, 3> ComputeCenterCoefficient(Point2 point, const Array<Point2, 3>& points) {
 	float fa = ComputeLineEquation(points[0], points[1], points[2]);
 	float fb = ComputeLineEquation(points[1], points[2], points[0]);
 	float fc = ComputeLineEquation(points[2], points[0], points[1]);
@@ -546,9 +546,9 @@ Array<float, 3> ComputeCenterCoefficient(Point2 point, Array<Point2, 3> points) 
 	return {alpha, beta, gamma};
 }
 
-Color ComputerCenterColor(Array<float, 3> coefficients, 
-						  Array<Color, 3> colors,
-						  Array<float, 3> pointW) {
+Color ComputerCenterColor(const Array<float, 3>& coefficients, 
+						  const Array<Color, 3>& colors,
+						  const Array<float, 3>& pointW) {
 	float screenR = ArrayIndex<3>().Stream([&](int i) {
 		return coefficients[i] * (colors[i].r / pointW[i]);
 	}).Sum();
@@ -564,15 +564,15 @@ Color ComputerCenterColor(Array<float, 3> coefficients,
 	return {screenR / screenOne, screenG / screenOne, screenB / screenOne};
 }
 
-Point4 ComputeCenterPoint(Array<float, 3> coefficients, Array<Point4, 3> points) {
+Point4 ComputeCenterPoint(const Array<float, 3>& coefficients,const Array<Point4, 3>& points) {
 	auto point = ArrayIndex<3>().Stream([&](int i) {
 		return points[i]* coefficients[i];
 	}).Sum();
 	return point;
 }
-Point2 ComputeCenterTextureCoordinate(Array<float, 3> coefficients,
-									  Array<Point2, 3> textureCoordinates,
-									  Array<float, 3> pointW) {
+Point2 ComputeCenterTextureCoordinate(const Array<float, 3>& coefficients,
+									  const Array<Point2, 3>& textureCoordinates,
+									  const Array<float, 3>& pointW) {
 	float screenU = ArrayIndex<3>().Stream([&](int i) {
 		return coefficients[i] * (textureCoordinates[i].x / pointW[i]);
 	}).Sum();

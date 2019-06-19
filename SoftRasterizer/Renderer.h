@@ -116,7 +116,7 @@ public:
 	void DrawTriangleByColor(const vector<Point3>& points,
 							 const vector<Color>& colors,
 							 const vector<ColorIndexData>& indexs,
-							 function<Point4(Point3)> vertexShader);
+							 const function<Point4(Point3)>& vertexShader);
 
 	/*
 		画白色线框 
@@ -125,7 +125,7 @@ public:
 	*/
 	void DrawTriangleByWireframe(const vector<Point3>& points,
 								 const vector<WireframeIndexData>& indexDatas,
-								 function<Point4(Point3)> vertexShader);
+								 const function<Point4(Point3)>& vertexShader);
 
 	/*
 		画纹理三角形
@@ -150,8 +150,8 @@ public:
 							   const vector<Point2>& textureCoordinates,
 							   const vector<Texture>& textures,
 							   const vector<TextureIndexData>& indexs,
-							   function<Point4(Point3, Point2, const Texture&)> vertexShader,
-							   function<Color(Point4, Point2, const Texture&)> pixelShader);
+							   const function<Point4(Point3, Point2, const Texture&)>& vertexShader,
+							   const function<Color(Point4, Point2, const Texture&)>& pixelShader);
 private:
 	//这个用于绘制纹理三角形来画像素的
 	void DrawZBuffer(int x, int y, float z, RGBColor color);
@@ -171,18 +171,18 @@ private:
 };
 
 //画白色线段 覆盖在图像最前面
-void HandleLine(int width, int height, Array<Point2, 2> line,
-				function<void(int, int)> func);
+void HandleLine(int width, int height, const Array<Point2, 2>& line,
+				const function<void(int, int)>& func);
 //画三角形像素
-void HandleTriangle(int width, int height, Array<Point4, 3> points,
-					function<void(int, int, Array<float, 3>)> howToUseCoefficient);
+void HandleTriangle(int width, int height, const Array<Point4, 3>& points,
+					const function<void(int, int, Array<float, 3>)>& howToUseCoefficient);
 
 
 /*
 	顺时针不消除 逆时针消除
 	消除返回true
 */
-bool BackCulling(Array<Point4, 3> points);
+bool BackCulling(const Array<Point4, 3>& points);
 
 /*
 	超平面剪裁 Ax + By + Cz + Dw = 0
@@ -204,34 +204,37 @@ bool ScreenLineClip(Array<Point2, 2> & points);
 	判断两直线是否相等
 	点不一定对应
 */
-bool ScreenLineEqual(Array<Point2, 2> pointsA, Array<Point2, 2> pointsB);
+bool ScreenLineEqual(const Array<Point2, 2>& pointsA,const Array<Point2, 2>& pointsB);
 
 /*
 	计算超平面上的点
 */
-Point4 ComputePlanePoint(Vector4 vector, Array<Point4, 2> points);
+Point4 ComputePlanePoint(Vector4 vector,const Array<Point4, 2>& points);
 
 /*
 	计算重心系数
 */
-Array<float, 3> ComputeCenterCoefficient(Point2 point, Array<Point2, 3> points);
+Array<float, 3> ComputeCenterCoefficient(Point2 point,const Array<Point2, 3>& points);
 
 /*
 	重心计算颜色 这个是根据w算的 不是直接重心计算
 */
-Color ComputerCenterColor(Array<float, 3> coefficients, Array<Color, 3> colors, Array<float,3> pointW);
+Color ComputerCenterColor(const Array<float, 3>& coefficients, 
+						  const Array<Color, 3>& colors, 
+						  const Array<float,3>& pointW);
 
 /*
 	重心计算顶点
 */
-Point4 ComputeCenterPoint(Array<float, 3> coefficients, Array<Point4, 3> points);
+Point4 ComputeCenterPoint(const Array<float, 3>& coefficients, 
+						  const Array<Point4, 3>& points);
 
 /*
 	重心计算纹理坐标
 */
-Point2 ComputeCenterTextureCoordinate(Array<float, 3> coefficients,
-									  Array<Point2, 3> textureCoordinates,
-									  Array<float, 3> pointW);
+Point2 ComputeCenterTextureCoordinate(const Array<float, 3>& coefficients,
+									  const Array<Point2, 3>& textureCoordinates,
+									  const Array<float, 3>& pointW);
 
 /*
 	获取一个像素的宽度
@@ -287,7 +290,7 @@ int ReversePixelToIndex(int x, int y, int width, int height);
 */
 template<typename TriangleData>
 MaxCapacityArray<std::pair<Array<Point4, 3>, Array<TriangleData, 3>>, 2> TriangleNearClipAndBackCulling(
-	Array<Point4, 3> points, Array<TriangleData, 3> triangleDatas) {
+	const Array<Point4, 3>& points, const Array<TriangleData, 3>& triangleDatas) {
 	//近平面
 	constexpr Vector4 nearPlane{0.0f, 0.0f, -1.0f, 0.0f};
 	auto pointColors = ArrayIndex<3>().Stream([&](int i) {
@@ -398,8 +401,8 @@ inline void Renderer::DrawTriangleByTexture(const vector<Point3>& points,
 											const vector<Point2>& textureCoordinates,
 											const vector<Texture>& textures,
 											const vector<TextureIndexData>& indexDatas,
-											function<Point4(Point3, Point2, const Texture&)> vertexShader,
-											function<Color(Point4, Point2, const Texture&)> pixelShader) {
+											const function<Point4(Point3, Point2, const Texture&)>& vertexShader,
+											const function<Color(Point4, Point2, const Texture&)>& pixelShader) {
 	for (auto& data : indexDatas) {
 		assert(std::all_of(data.pointIndex.begin(), data.pointIndex.end(), [&](unsigned i) {
 			return i < points.size();
