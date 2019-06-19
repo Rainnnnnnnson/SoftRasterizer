@@ -70,7 +70,7 @@ Color RGBImage::BilinearFiltering(Point2 p) const {
 
 //================================================================================================================
 
-//在清空状态深度储存为1.0f
+//在清空状态深度储存为2.0f
 constexpr float clearDepth = 2.0f;
 //清空屏幕时为黑色
 constexpr RGBColor black = {0, 0, 0};
