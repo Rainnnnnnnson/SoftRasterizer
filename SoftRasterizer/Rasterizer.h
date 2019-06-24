@@ -2,6 +2,7 @@
 #include<vector>
 #include<array>
 #include<functional>
+#include"Assertion.h"
 #include"RGBImage.h"
 using std::function;
 using std::vector;
@@ -77,6 +78,23 @@ public:
 private:
 	//单元测试接口
 
+	// x 从像素空间转化至屏幕空间 [0, width - 1] => [-1, 1]
+	float XPixelToScreen(int x) const;
+	// y 从像素空间转化至屏幕空间 [0, height - 1] => [-1, 1]
+	float YPixelToScreen(int y) const;
+	// x 从屏幕空间转化至像素空间 [-1, 1] => [0, width - 1]
+	int XScreenToPixel(float x) const;
+	// y 从屏幕空间转化至像素空间 [-1, 1] => [0, height - 1]
+	int YScreenToPixel(float y) const;
+	//判断 x 在[0, width - 1]中  y 在[0, height - 1]中
+	bool XYInPixel(int x, int y) const;
+	//判断 x 在[-1, 1]中 y 在[-1, 1]中
+	bool XYInScreen(float x, float y) const;
+	//判断 z 在 [0,1]中
+	bool ZInViewVolumn(float z) const;
+
+
+
 
 	//剪裁近平面 因为顶点顺序问题 需要同时进行背面剪裁
 	vector<array<pair<Point4, tuple<Point2, Color, Vector3>>, 3>> TriangleNearPlaneClipAndBackCull(
@@ -127,21 +145,32 @@ private:
 
 	//线框模式下绘制白色顶点 会覆盖在ZBuffer最前面 无法被其他元素覆盖
 	void DrawWritePixel(int x, int y);
-
-
-
-	// x 从屏幕空间转化至像素空间 [-1, 1] => [0, width - 1]
-	int XScreenToPixel(float x) const;
-	// y 从屏幕空间转化至像素空间 [-1, 1] => [0, height - 1]
-	int YScreenToPixel(float y) const;
-	//判断 x 在[0, width - 1]中  y 在[0, height - 1]中
-	bool XYInPixel(int x, int y) const;
-	//判断 x 在[-1, 1]中 y 在[-1, 1]中
-	bool XYInScreen(float x, float y) const;
-	//判断 z 在 [0,1]中
-	bool ZInViewVolumn(float z) const;
 private:
 	int width;
 	int height;
 	vector<pair<float, Color>> zBuffer;
 };
+
+template<typename Texture>
+inline void Rasterizer::DrawTriangle(const vector<Point3>& vertexs, 
+									 const vector<Point2>& coordinates, 
+									 const vector<Vector3>& normals, 
+									 const vector<Color>& colors, 
+									 const vector<Texture>& textures, 
+									 const vector<IndexData>& indexs, 
+									 const function<Point4(Point3, Point2, Vector3, Color, const Texture&)>& vertexShader, 
+									 const function<Color(Point4, Point2, Vector3, Color, const Texture&)>& pixelShader) {
+
+}
+
+template<typename Texture>
+inline void Rasterizer::DrawWireframe(const vector<Point3>& vertexs, 
+									  const vector<Point2>& coordinates, 
+									  const vector<Vector3>& normals, 
+									  const vector<Color>& colors, 
+									  const vector<Texture>& textures, 
+									  const vector<IndexData>& indexs, 
+									  const function<Point4(Point3, Point2, Vector3, Color, const Texture&)>& vertexShader, 
+									  const function<Color(Point4, Point2, Vector3, Color, const Texture&)>& pixelShader) {
+
+}

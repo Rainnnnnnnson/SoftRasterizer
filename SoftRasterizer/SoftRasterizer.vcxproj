@@ -131,6 +131,7 @@
     <ClCompile Include="Display.cpp" />
     <ClCompile Include="Main.cpp" />
     <ClCompile Include="Math.cpp" />
+    <ClCompile Include="Rasterizer.cpp" />
     <ClCompile Include="Renderer.cpp" />
     <ClCompile Include="RGBImage.cpp" />
   </ItemGroup>
