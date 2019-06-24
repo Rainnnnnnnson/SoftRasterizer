@@ -83,7 +83,7 @@ Matrix4X4 RotateZ(float r) {
 	};
 }
 
-bool Point2::operator==(const Point2& p) const {
+bool Point2::operator==(Point2 p) const {
 	return x == p.x && y == p.y;
 }
 
@@ -91,19 +91,19 @@ Point2 Point2::operator*(float f) const {
 	return {x * f, y * f};
 }
 
-Point2 Point2::operator+(const Point2& p) const {
+Point2 Point2::operator+(Point2 p) const {
 	return {x + p.x, y + p.y};
 }
 
-Vector3 Point3::operator-(const Point3& p) const {
+Vector3 Point3::operator-(Point3 p) const {
 	return Vector3{x - p.x, y - p.y, z - p.z};
 }
 
-Point3 Point3::operator+(const Vector3& v) const {
+Point3 Point3::operator+(Vector3 v) const {
 	return Point3{x + v.x, y + v.y, z + v.z};
 }
 
-Vector3 Point3::GetVector3FormOrigin() const {
+Vector3 Point3::GetVector3() const {
 	return {x, y, z};
 }
 
@@ -115,11 +115,11 @@ Point4 Point3::ToPoint4() const {
 	return Point4{x, y, z, 1};
 }
 
-bool Point4::operator==(const Point4& p) const {
+bool Point4::operator==(Point4 p) const {
 	return (x == p.x) && (y == p.y) && (z == p.z) && (w == p.w);
 }
 
-Point4 Point4::operator+(const Point4& p) const {
+Point4 Point4::operator+(Point4 p) const {
 	return Point4{x + p.x, y + p.y, z + p.z, w + p.w};
 }
 
@@ -127,15 +127,15 @@ Point4 Point4::operator*(float f) const {
 	return Point4{x * f, y * f, z * f, w * f};
 }
 
-Vector4 Point4::GetVector4FormOrigin() const {
+Vector4 Point4::GetVector4() const {
 	return {x, y, z, w};
 }
 
-Vector4 Point4::operator-(const Point4& p) const {
+Vector4 Point4::operator-(Point4 p) const {
 	return Vector4{x - p.x, y - p.y, z - p.z, w - p.w};
 }
 
-Point4 Point4::operator+(const Vector4& v) const {
+Point4 Point4::operator+(Vector4 v) const {
 	return Point4{x + v.x, y + v.y, z + v.z, w + v.w};
 }
 
@@ -147,19 +147,23 @@ Point3 Point4::ToPoint3() const {
 	return Point3{x / w, y / w, z / w};
 }
 
-Vector3 Vector3::operator+(const Vector3& v) const {
+Vector3 Vector3::operator*(float f) const {
+	return {x * f, y * f, z * f};
+}
+
+Vector3 Vector3::operator+(Vector3 v) const {
 	return {x + v.x, y + v.y, z + v.z};
 }
 
-Point3 Vector3::operator-(const Vector3& v) const {
+Point3 Vector3::operator-(Vector3 v) const {
 	return {x - v.x, y - v.y, z - v.z};
 }
 
-float Vector3::Dot(const Vector3& v) const {
+float Vector3::Dot(Vector3 v) const {
 	return x * v.x + y * v.y + z * v.z;
 }
 
-Vector3 Vector3::Cross(const Vector3& v) const {
+Vector3 Vector3::Cross(Vector3 v) const {
 	return Vector3{y * v.z - z * v.y, z * v.x - x * v.z, x * v.y - y * v.x};
 }
 
@@ -168,7 +172,7 @@ float Vector3::Length() const {
 }
 
 Vector3 Vector3::Normalize() const {
-	return (1.0f / Length()) * (*this);
+	return (*this) * (1.0f / Length());
 }
 
 Matrix3X3 Matrix3X3::Inverse() const {
@@ -191,7 +195,7 @@ float Matrix3X3::Determinant() const {
 		+ f[0][2] * f[1][0] * f[2][1] - f[0][2] * f[1][1] * f[2][0];
 }
 
-Vector3 Matrix3X3::operator*(const Vector3& v) const {
+Vector3 Matrix3X3::operator*(Vector3 v) const {
 	return Vector3{
 		f[0][0] * v.x + f[0][1] * v.y + f[0][2] * v.z,
 		f[1][0] * v.x + f[1][1] * v.y + f[1][2] * v.z,
@@ -305,7 +309,7 @@ Matrix4X4 Matrix4X4::operator*(const Matrix4X4& m) const {
 	};
 }
 
-Point4 Matrix4X4::operator*(const Point4& p) const {
+Point4 Matrix4X4::operator*(Point4 p) const {
 	float x = f[0][0] * p.x + f[0][1] * p.y + f[0][2] * p.z + f[0][3] * p.w;
 	float y = f[1][0] * p.x + f[1][1] * p.y + f[1][2] * p.z + f[1][3] * p.w;
 	float z = f[2][0] * p.x + f[2][1] * p.y + f[2][2] * p.z + f[2][3] * p.w;
@@ -313,7 +317,7 @@ Point4 Matrix4X4::operator*(const Point4& p) const {
 	return Point4{x, y, z, w};
 }
 
-Color Color::operator+(const Color& c) const {
+Color Color::operator+(Color c) const {
 	return Color{r + c.r, g + c.g, b + c.b};
 }
 
@@ -321,7 +325,7 @@ Color Color::operator*(float f) const {
 	return Color{r * f, g * f, b * f};
 }
 
-float Vector4::Dot(const Vector4& v) const {
+float Vector4::Dot(Vector4 v) const {
 	return x * v.x + y * v.y + z * v.z + w * v.w;
 }
 

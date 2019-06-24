@@ -13,17 +13,17 @@ float ComputeLineEquation(Point2 p, Point2 p0, Point2 p1);
 
 struct Point2 {
 	float x, y;
-	bool operator== (const Point2& p) const;
+	bool operator== (Point2 p) const;
 	Point2 operator*(float f) const;
-	Point2 operator+(const Point2& p) const;
+	Point2 operator+(Point2 p) const;
 };
 
 struct Point3 {
 	float x, y, z;
-	Vector3 operator-(const Point3& p) const;
-	Point3 operator+(const Vector3& v) const;
+	Vector3 operator-(Point3 p) const;
+	Point3 operator+(Vector3 v) const;
 	//获取变成从 原点开始的向量 这里内存不变
-	Vector3 GetVector3FormOrigin() const;
+	Vector3 GetVector3() const;
 	//(x, y)
 	Point2 GetPoint2() const;
 	//(x, y, z, 1)
@@ -32,14 +32,14 @@ struct Point3 {
 
 struct Point4 {
 	float x, y, z, w;
-	bool operator==(const Point4& p) const;
+	bool operator==(Point4 p) const;
 	//主要用于重心计算
-	Point4 operator+(const Point4& p) const;
+	Point4 operator+(Point4 p) const;
 	Point4 operator*(float f) const;
+	Vector4 operator-(Point4 p) const;
+	Point4 operator+(Vector4 v) const;
 	//获取变成从 原点开始的向量 这里内存不变
-	Vector4 GetVector4FormOrigin() const;
-	Vector4 operator-(const Point4& p) const;
-	Point4 operator+(const Vector4& v) const;
+	Vector4 GetVector4() const;
 	//(x, y)
 	Point2 GetPoint2() const;
 	//(x/w, y/w, z/w)
@@ -48,18 +48,18 @@ struct Point4 {
 
 struct Vector3 {
 	float x, y, z;
-	friend Vector3 operator*(const float& f, const Vector3& v);
-	Vector3 operator+(const Vector3& v) const;
-	Point3 operator-(const Vector3& v) const;
-	float Dot(const Vector3& v) const;
-	Vector3 Cross(const Vector3& v) const;
+	Vector3 operator*(float f) const;
+	Vector3 operator+(Vector3 v) const;
+	Point3 operator-(Vector3 v) const;
+	float Dot(Vector3 v) const;
+	Vector3 Cross(Vector3 v) const;
 	float Length() const;
 	Vector3 Normalize() const;
 };
 
 struct Vector4 {
 	float x, y, z, w;
-	float Dot(const Vector4& v) const;
+	float Dot(Vector4 v) const;
 	Vector4 operator*(float f) const;
 };
 
@@ -70,8 +70,8 @@ struct Matrix3X3 {
 	Matrix3X3 Transpose() const;
 	float Determinant() const;
 	Matrix3X3 operator*(const Matrix3X3& m) const;
-	Point3 operator*(const Point3& p) const;
-	Vector3 operator*(const Vector3& v) const;
+	Point3 operator*(Point3 p) const;
+	Vector3 operator*(Vector3 v) const;
 };
 
 struct Matrix4X4 {
@@ -81,7 +81,7 @@ struct Matrix4X4 {
 	Matrix4X4 Transpose() const;
 	float Determinant() const;
 	Matrix4X4 operator*(const Matrix4X4& m) const;
-	Point4 operator*(const Point4& p) const;
+	Point4 operator*(Point4 p) const;
 };
 
 Matrix4X4 CameraLookTo(Point3 eye, Vector3 direction, Vector3 up);
@@ -95,9 +95,9 @@ Matrix4X4 RotateZ(float radian);
 
 struct Color {
 	float r, g, b;
-	Color operator+(const Color& c) const;
-	Color operator-(const Color& c) const;
+	Color operator+(Color c) const;
+	Color operator-(Color c) const;
 	Color operator*(float f) const;
-	Color operator*(const Color& c) const;
-	Color operator/(const Color& c) const;
+	Color operator*(Color c) const;
+	Color operator/(Color c) const;
 };

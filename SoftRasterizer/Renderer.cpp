@@ -438,7 +438,7 @@ Point4 ComputePlanePoint(Vector4 N, const Array<Point4,2>& points) {
 	//N[P0 + t(P1 - P0)] = 0
 	// t = - (N * P0) / (N * (P1 - P0))
 	Vector4 vector4 = points[1] - points[0];
-	float t = -(N.Dot(points[0].GetVector4FormOrigin())) / (N.Dot(vector4));
+	float t = -(N.Dot(points[0].GetVector4())) / (N.Dot(vector4));
 	Point4 p = points[0] + (vector4 * t);
 	return p;
 }
@@ -465,7 +465,7 @@ MaxCapacityArray<Array<Point4, 3>, 2> TriangleClip(Vector4 vector4, const Array<
 	});
 	//带入超平面得到梯度方向的距离 
 	for (auto& pointBool : pointBools) {
-		pointBool.second = pointBool.first.GetVector4FormOrigin().Dot(vector4);
+		pointBool.second = pointBool.first.GetVector4().Dot(vector4);
 	}
 	//根据距离排序
 	std::sort(pointBools.begin(), pointBools.end(), [](auto& pointBool1, auto& pointBool2) {

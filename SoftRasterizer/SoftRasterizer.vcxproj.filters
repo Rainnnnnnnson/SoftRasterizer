@@ -27,6 +27,12 @@
     <ClCompile Include="Display.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
+    <ClCompile Include="Application.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="RGBImage.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Renderer.h">
@@ -42,6 +48,15 @@
       <Filter>头文件</Filter>
     </ClInclude>
     <ClInclude Include="Display.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="Rasterizer.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="RGBImage.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="Application.h">
       <Filter>头文件</Filter>
     </ClInclude>
   </ItemGroup>
