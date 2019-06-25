@@ -22,9 +22,7 @@ struct Point3 {
 	float x, y, z;
 	Vector3 operator-(Point3 p) const;
 	Point3 operator+(Vector3 v) const;
-	//获取变成从 原点开始的向量 这里内存不变
 	Vector3 GetVector3() const;
-	//(x, y)
 	Point2 GetPoint2() const;
 	//(x, y, z, 1)
 	Point4 ToPoint4() const;
@@ -40,8 +38,8 @@ struct Point4 {
 	Point4 operator+(Vector4 v) const;
 	//获取变成从 原点开始的向量 这里内存不变
 	Vector4 GetVector4() const;
-	//(x, y)
-	Point2 GetPoint2() const;
+	//(x/w, y/w)
+	Point2 ToPoint2() const;
 	//(x/w, y/w, z/w)
 	Point3 ToPoint3() const;
 };

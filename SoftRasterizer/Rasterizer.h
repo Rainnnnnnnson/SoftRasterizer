@@ -9,13 +9,14 @@ using std::vector;
 using std::array;
 using std::pair;
 using std::tuple;
+using std::get;
 
 struct IndexData {
-	array<int, 3> vertexIndex;
-	array<int, 3> coodinateIndex;
-	array<int, 3> normalIndex;
-	array<int, 3> colorIndex;
-	int textureIndex;
+	array<int, 3> vertex;
+	array<int, 3> coordinate;
+	array<int, 3> normal;
+	array<int, 3> color;
+	int texture;
 };
 
 
@@ -76,7 +77,7 @@ public:
 					   const function<Point4(Point3, Point2, Vector3, Color, const Texture&)>& vertexShader,
 					   const function<Color(Point4, Point2, Vector3, Color, const Texture&)>& pixelShader);
 private:
-	//单元测试接口
+	//单元测试接口 编译器开启public权限 或者 #define 来测试
 
 	// x 从像素空间转化至屏幕空间 [0, width - 1] => [-1, 1]
 	float XPixelToScreen(int x) const;
@@ -97,11 +98,16 @@ private:
 
 
 	//剪裁近平面 因为顶点顺序问题 需要同时进行背面剪裁
-	vector<array<pair<Point4, tuple<Point2, Color, Vector3>>, 3>> TriangleNearPlaneClipAndBackCull(
-		const array<pair<Point4, tuple<Point2, Color, Vector3>>, 3> & triangleData);
-
+	vector<array<pair<Point4, tuple<Point2, Vector3, Color>>, 3>> TriangleNearPlaneClipAndBackCull(
+		const array<pair<Point4, tuple<Point2, Vector3, Color>>, 3> & triangleData);
+	/*
+		通过平面两侧的点计算 在平面的交点
+	    近平面 N = (0, 0, -1, 0);
+		远平面 N = (0, 0, 1, -1);
+	*/
+	Point4 ComputePlanePoint(Vector4 N, const array<Point4, 2> & points);
 	//背面消除
-	bool BackCulling(const array<Point2, 3> & vertexs);
+	bool BackCull(const array<Point2, 3> & vertexs);
 
 	/*
 		三角形光栅化 
@@ -112,8 +118,8 @@ private:
 							   const function<void(int, int, const array<float, 3>&)>& useCoefficient);
 
 	//通过屏幕的重心坐标计算插值 需要进行插值矫正
-	pair<Point4, tuple<Point2, Color, Vector3>> CaculateCoefficientData(
-		const array<pair<Point4, tuple<Point2, Color, Vector3>>, 3> & triangleData,
+	pair<Point4, tuple<Point2, Vector3, Color>> CaculateCoefficientData(
+		const array<pair<Point4, tuple<Point2, Vector3, Color>>, 3> & triangleData,
 		const array<float, 3> & coefficients);
 
 	//颜色写入ZBuffer
@@ -131,7 +137,7 @@ private:
 		非线框模式下根据深度进行消除或保留
 		这里只在远平面 留一条线 并且将不重复线段 加入至其中
 	*/
-	vector<array<Point4, 2>> WireframeFarPlaneClipAndGetNotRepeatingLines();
+	vector<array<Point2, 2>> WireframeFarPlaneClipAndGetNotRepeatingLines(const vector<array<Point4, 3>> & vertexs);
 
 	/*
 		Liang-Barsky直线段裁剪
@@ -160,7 +166,53 @@ inline void Rasterizer::DrawTriangle(const vector<Point3>& vertexs,
 									 const vector<IndexData>& indexs, 
 									 const function<Point4(Point3, Point2, Vector3, Color, const Texture&)>& vertexShader, 
 									 const function<Color(Point4, Point2, Vector3, Color, const Texture&)>& pixelShader) {
-
+	for (const auto& index : indexs) {
+		assert(std::all_of(index.vertex.begin(), index.vertex.end(), [&](int i) {
+			return i >= 0 && i < vertexs.size();
+		}));
+		assert(std::all_of(index.coordinate.begin(), index.coordinate.end(), [&](int i) {
+			return i >= 0 && i < coordinates.size();
+		}));
+		assert(std::all_of(index.normal.begin(), index.normal.end(), [&](int i) {
+			return i >= 0 && i < normals.size();
+		}));
+		assert(std::all_of(index.color.begin(), index.color.end(), [&](int i) {
+			return i >= 0 && i < colors.size();
+		}));
+		assert(index.texture >= 0 && index.texture < textures.size());
+		array<Point4, 3> mainVertexs;
+		for (int i = 0; i < 3; i++) {
+			mainVertexs[i] = vertexShader(
+				vertexs[index.vertex[i]],
+				coordinates[index.coordinate[i]],
+				normals[index.normal[i]],
+				colors[index.color[i]],
+				textures[index.texture]
+			);
+		}
+		array<pair<Point4, tuple<Point2, Vector3, Color>>, 3> triangle;
+		for (int i = 0; i < 3; i++) {
+			triangle[i] = {
+				mainVertexs[i], {coordinates[index.coordinate[i]], normals[index.normal[i]], colors[index.color[i]]}
+			};
+		}
+		auto clipTriangles = TriangleNearPlaneClipAndBackCull(triangle);
+		for (const auto& clipTriangle : clipTriangles) {
+			array<Point2, 3> screenTriangle;
+			for (int i = 0; i < 3; i++) {
+				screenTriangle[i] = clipTriangle[i].first.ToPoint2();
+			}
+			TriangleRasterization(screenTriangle, [&](int x, int y, const array<float, 3> & coefficient) {
+				auto data = CaculateCoefficientData(clipTriangle, coefficient);
+				float depth = data.first.z / data.first.w;
+				if (ZInViewVolumn(depth)) {
+					Color color = pixelShader(data.first, get<0>(data.second), get<1>(data.second),
+											  get<2>(data.second), textures[index.texture]);
+					DrawZBuffer(x, y, depth, color);
+				}
+			});
+		}
+	}
 }
 
 template<typename Texture>
@@ -172,5 +224,36 @@ inline void Rasterizer::DrawWireframe(const vector<Point3>& vertexs,
 									  const vector<IndexData>& indexs, 
 									  const function<Point4(Point3, Point2, Vector3, Color, const Texture&)>& vertexShader, 
 									  const function<Color(Point4, Point2, Vector3, Color, const Texture&)>& pixelShader) {
-
+	for (const auto& index : indexs) {
+		assert(std::all_of(index.vertex.begin(), index.vertex.end(), [&](int i) {
+			return i >= 0 && i < vertexs.size();
+		}));
+		assert(std::all_of(index.coordinate.begin(), index.coordinate.end(), [&](int i) {
+			return i >= 0 && i < coordinates.size();
+		}));
+		assert(std::all_of(index.normal.begin(), index.normal.end(), [&](int i) {
+			return i >= 0 && i < normals.size();
+		}));
+		assert(std::all_of(index.color.begin(), index.color.end(), [&](int i) {
+			return i >= 0 && i < colors.size();
+		}));
+		assert(index.texture >= 0 && index.texture < textures.size());
+		array<Point4, 3> mainVertexs;
+		for (int i = 0; i < 3; i++) {
+			mainVertexs[i] = vertexShader(
+				vertexs[index.vertex[i]],
+				coordinates[index.coordinate[i]],
+				normals[index.normal[i]],
+				colors[index.color[i]],
+				textures[index.texture]
+			);
+		}
+		auto clipTriangles = WireframeNearPlaneClip(mainVertexs);
+		auto lines = WireframeFarPlaneClipAndGetNotRepeatingLines(clipTriangles);
+		for (auto& line : lines) {
+			if (LineClip(line)) {
+				DrawLine(line);
+			}
+		}
+	}
 }

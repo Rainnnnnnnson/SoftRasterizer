@@ -1,6 +1,7 @@
 #include "RGBImage.h"
 #include "Assertion.h"
 #include <algorithm>
+
 unsigned char ColorFloatToByte(float f) {
 	assert(!isnan(f));
 	float test = f * 255.0f;
