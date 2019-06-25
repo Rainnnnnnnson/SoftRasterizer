@@ -5,21 +5,14 @@
 #include"Array.h"
 #include"Assertion.h"
 #include"Math.h"
+#include"Rasterizer.h"
 using std::vector;
 using std::function;
 
-struct RGBColor;
 struct WireframeIndexData;
 struct ColorIndexData;
 struct TextureIndexData;
-class RGBImage;
 class Renderer;
-
-struct RGBColor {
-	unsigned char r;
-	unsigned char g;
-	unsigned char b;
-};
 
 struct WireframeIndexData {
 	Array<unsigned, 3> pointIndex;
@@ -38,18 +31,6 @@ struct TextureIndexData {
 };
 
 /*
-	将[0,1]映射至[0,255] 
-	小于0 取 0
-	大于1 取 255
-*/
-RGBColor ColorToRGBColor(Color c);
-
-/*
-	将[0,255]映射至[0,1] 
-*/
-Color RGBColorToColor(RGBColor c);
-
-/*
 	远近平面两次剪裁后最多得到4个三角形
 */
 MaxCapacityArray<Array<Point4, 3>, 4> TriangleNearAndFarClip(const Array<Point4, 3> & points);
@@ -60,37 +41,6 @@ MaxCapacityArray<Array<Point4, 3>, 4> TriangleNearAndFarClip(const Array<Point4,
 	所以最多生成9条不同的线段
 */
 MaxCapacityArray<Array<Point2, 2>, 9> GetNotRepeatingScreenLines(const MaxCapacityArray<Array<Point4, 3>, 4> & triangles);
-
-/*
-	int   获取坐标使用[0, width -1] * [0, height - 1]
-	float 获取坐标使用[0,1] * [0,1]
-*/
-class RGBImage {
-public:
-	RGBImage(int width, int height);
-	int GetWidth() const;
-	int GetHeight() const;
-
-	//==========================================
-
-	//左上角为[0,0]
-	RGBColor GetPixel(int x, int y) const;
-	void SetPixel(int x, int y, RGBColor rgb);
-
-	//=========================================
-
-	//左下角为[0,0]
-	RGBColor ReverseGetPixel(int x, int y) const;
-	void ReverseSetPixel(int x, int y, RGBColor rgb);
-	//取值[0,1] 超过取边界
-	Color BilinearFiltering(Point2 p) const;
-private:
-	int width;
-	int height;
-	//以左上角为[0,0]计算
-	//内存是图片顺序存储的 index = y * width + x
-	vector<RGBColor> rgbs;
-};
 
 /*
 	可视空间 x * y * z == [-1,1) * [-1.1) * [0,1]
@@ -298,7 +248,7 @@ MaxCapacityArray<std::pair<Array<Point4, 3>, Array<TriangleData, 3>>, 2> Triangl
 	});
 	//获得和近平面的距离
 	for (auto& pointColor : pointColors) {
-		pointColor.second = pointColor.first.first.GetVector4FormOrigin().Dot(nearPlane);
+		pointColor.second = pointColor.first.first.GetVector4().Dot(nearPlane);
 	}
 	/*
 		因为顶点需要排序 得到对应顺序后剪裁

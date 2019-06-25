@@ -1,5 +1,7 @@
+
 #include "Renderer.h"
 //============================================
+/*
 
 RGBImage::RGBImage(int width, int height) : width(width), height(height),
 rgbs(static_cast<size_t>(width)* height, RGBColor{0, 0, 0}) {
@@ -61,19 +63,19 @@ Color RGBImage::BilinearFiltering(Point2 p) const {
 	// A B
 	// C D
 	//四个像素
-	Color A = RGBColorToColor(ReverseGetPixel(u0i, v0i)) * uLeft * vUp;
-	Color B = RGBColorToColor(ReverseGetPixel(u1i, v0i)) * uRight * vUp;
-	Color C = RGBColorToColor(ReverseGetPixel(u0i, v1i)) * uLeft * vDown;
-	Color D = RGBColorToColor(ReverseGetPixel(u1i, v1i)) * uRight * vDown;
+	Color A = RGBColorToColor1(ReverseGetPixel(u0i, v0i)) * uLeft * vUp;
+	Color B = RGBColorToColor1(ReverseGetPixel(u1i, v0i)) * uRight * vUp;
+	Color C = RGBColorToColor1(ReverseGetPixel(u0i, v1i)) * uLeft * vDown;
+	Color D = RGBColorToColor1(ReverseGetPixel(u1i, v1i)) * uRight * vDown;
 	return A + B + C + D;
 }
-
+*/
 //================================================================================================================
 
 //在清空状态深度储存为2.0f
 constexpr float clearDepth = 2.0f;
 //清空屏幕时为黑色
-constexpr RGBColor black = {0, 0, 0};
+const RGBColor black(0, 0, 0);
 
 Renderer::Renderer(int width, int height)
 	: width(width), height(height),
@@ -137,7 +139,7 @@ void Renderer::DrawTriangleByColor(const vector<Point3>& points,
 				float depth = point.ToPoint3().z;
 				if (InScreenZ(depth)) {
 					Color color = ComputerCenterColor(coefficients, triangleColors, trianglePointW);
-					DrawZBuffer(x, y, depth, ColorToRGBColor(color));
+					DrawZBuffer(x, y, depth, color);
 				}
 			});
 		}
@@ -186,7 +188,7 @@ void Renderer::DrawWritePixel(int x, int y) {
 	//保证其他像素写入的时候不会覆盖掉直线
 	constexpr float lineDepth = -1.0f;
 	//白色
-	constexpr RGBColor write = {255, 255, 255};
+	const RGBColor write = {255, 255, 255};
 	int index = ReversePixelToIndex(x, y, width, height);
 	zBuffer[index] = {lineDepth, write};
 }
@@ -299,7 +301,7 @@ void HandleTriangle(int width, int height,const Array<Point4, 3>& points,
 	}
 }
 
-unsigned char ColorFloatToByte(float f) {
+unsigned char ColorFloatToByte1(float f) {
 	float test = f * 255.0f;
 	if (test <= 0) {
 		return 0;
@@ -312,21 +314,21 @@ unsigned char ColorFloatToByte(float f) {
 
 RGBColor ColorToRGBColor(Color c) {
 	return RGBColor{
-		ColorFloatToByte(c.r),
-		ColorFloatToByte(c.g),
-		ColorFloatToByte(c.b),
+		ColorFloatToByte1(c.r),
+		ColorFloatToByte1(c.g),
+		ColorFloatToByte1(c.b),
 	};
 }
 
-float ByteToColorFloat(unsigned char b) {
+float ByteToColorFloat1(unsigned char b) {
 	return static_cast<float>(b) / 255.0f;
 }
 
-Color RGBColorToColor(RGBColor c) {
+Color RGBColorToColor1(RGBColor c) {
 	return Color{
-		ByteToColorFloat(c.r),
-		ByteToColorFloat(c.g),
-		ByteToColorFloat(c.b),
+		ByteToColorFloat1(c.r),
+		ByteToColorFloat1(c.g),
+		ByteToColorFloat1(c.b),
 	};
 }
 

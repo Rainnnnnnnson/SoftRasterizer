@@ -36,7 +36,6 @@ struct Point4 {
 	Point4 operator*(float f) const;
 	Vector4 operator-(Point4 p) const;
 	Point4 operator+(Vector4 v) const;
-	//获取变成从 原点开始的向量 这里内存不变
 	Vector4 GetVector4() const;
 	//(x/w, y/w)
 	Point2 ToPoint2() const;

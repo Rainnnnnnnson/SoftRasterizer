@@ -30,6 +30,15 @@ RGBImage Rasterizer::GenerateRGBImage() const {
 	return image;
 }
 
+int Rasterizer::PixelToIndex(int x, int y) {
+	return y * width + x;
+}
+
+int Rasterizer::ReversePixelToIndex(int x, int y) {
+	int reverseY = height - y - 1;
+	return reverseY * width + x;
+}
+
 float Rasterizer::XPixelToScreen(int x) const {
 	float delta = 1.0f / width;
 	float start = -1.0f + 0.5f * delta;
@@ -161,13 +170,13 @@ vector<array<pair<Point4, tuple<Point2, Vector3, Color>>, 3>> Rasterizer::Triang
 			Color newColor1 = get<2>(data0) * (1.0f - t1) + get<2>(data2) * t1;
 			Color newColor2 = get<2>(data0) * (1.0f - t2) + get<2>(data1) * t2;
 		    //通过顶点加入至容器还是按照顺时针加入
-			const auto& vectex0 = vertexs[0];
-			auto newVectex1 = 
+			const auto& vertex0 = vertexs[0].first;
+			auto newVertex1 = 
 				pair<Point4, tuple<Point2, Vector3, Color>>{newPoint1, {newCoordinate1, newNormal1, newColor1}};
-			auto newVectex2 = 
+			auto newVertex2 = 
 				pair<Point4, tuple<Point2, Vector3, Color>>{newPoint2, {newCoordinate2, newNormal2, newColor2}};
 			result.reserve(1);
-			result.emplace_back(vectex0, newVectex2, newVectex1);
+			result.push_back({vertex0, newVertex2, newVertex1});
 		}
 	} else if (vertexCount == 2) {
 		//这里的逻辑和上面相似不再重复注释
@@ -204,25 +213,483 @@ vector<array<pair<Point4, tuple<Point2, Vector3, Color>>, 3>> Rasterizer::Triang
 			Vector3 newNormal2 = get<1>(data1) * (1.0f - t2) + get<1>(data2) * t2;
 			Color newColor1 = get<2>(data0) * (1.0f - t1) + get<2>(data2) * t1;
 			Color newColor2 = get<2>(data1) * (1.0f - t2) + get<2>(data2) * t2;
-			const auto& vectex0 = vertexs[0];
-			const auto& vectex1 = vertexs[1];
-			auto newVectex1 =
+			const auto& vertex0 = vertexs[0].first;
+			const auto& vertex1 = vertexs[1].first;
+			auto newVertex1 =
 				pair<Point4, tuple<Point2, Vector3, Color>>{newPoint1, {newCoordinate1, newNormal1, newColor1}};
-			auto newVectex2 =
+			auto newVertex2 =
 				pair<Point4, tuple<Point2, Vector3, Color>>{newPoint2, {newCoordinate2, newNormal2, newColor2}};
 			result.reserve(2);
-			result.emplace_back(vectex0, vectex1, newVectex2);
-			result.emplace_back(vectex0, newVectex2, newVectex1);
+			result.push_back({vertex0, vertex1, newVertex2});
+			result.push_back({vertex0, newVertex2, newVertex1});
 		}
 	} else if (vertexCount == 3) {
 		//不需要剪裁
 		array<Point2, 3> testTriangle{point0.ToPoint2(), point1.ToPoint2(), point2.ToPoint2()};
 		if (!(BackCull(testTriangle) ^ reverse)) {
 			result.reserve(1);
-			result.emplace_back(vertexs[0], vertexs[1], vertexs[2]);
+			result.push_back({vertexs[0].first, vertexs[1].first, vertexs[2].first});
 		}
 	} else {
 		//pointCount == 0 不需要绘制
 	}
 	return result;
+}
+
+Point4 Rasterizer::ComputePlanePoint(Vector4 N, const array<Point4, 2> & points) {
+	/*
+		在w还没有归一化的时候
+		透视投影和正交投影都是线性的
+		计算两点与平面的系数t
+		这里扩展到四维 方法和三维一样
+		N[A + t(B - A)] = 0
+		t = - (N * A) / (N * (B - A))
+	*/
+	Point4 A = points[0];
+	Point4 B = points[1];
+	Vector4 BA = B - A;
+	float t = -(N.Dot(A.GetVector4())) / (N.Dot(BA));
+	Point4 p = A + (BA * t);
+	return p;
+}
+
+bool Rasterizer::BackCull(const array<Point2, 3> & points) {
+	Point3 A{points[0].x, points[0].y, 0.0f};
+	Point3 B{points[1].x, points[1].y, 0.0f};
+	Point3 C{points[2].x, points[2].y, 0.0f};
+	Vector3 BA = B - A;
+	Vector3 CB = C - B;
+	Vector3 cross = BA.Cross(CB);
+	Vector3 z{0.0f, 0.0f, 1.0f};
+	if ((cross.Dot(z)) < 0.0f) {
+		return false;
+	}
+	return true;
+}
+
+void Rasterizer::TriangleRasterization(const array<Point2, 3> & points, 
+									   const function<void(int, int, const array<float, 3>&)>& useCoefficient) {
+	//获取三角形中顶点最大最小的x y值
+	//用于计算需要绘制的边框
+	array<float, 3> xValue;
+	array<float, 3> yValue;
+	for (int i = 0; i < 3; i++) {
+		xValue[i] = points[i].x;
+		yValue[i] = points[i].y;
+	}
+	std::sort(xValue.begin(), xValue.end(), std::less<float>());
+	std::sort(yValue.begin(), yValue.end(), std::less<float>());
+	//确定需要绘制的边界
+	int xMax = std::min(XScreenToPixel(xValue[2]), width - 1);
+	int xMin = std::max(XScreenToPixel(xValue[0]), 0);
+	int yMax = std::min(YScreenToPixel(yValue[2]), height - 1);
+	int yMin = std::max(YScreenToPixel(yValue[0]), 0);
+	Point2 A = points[0];
+	Point2 B = points[1];
+	Point2 C = points[2];
+	float fa = CaculateLineEquation(A, B, C);
+	float fb = CaculateLineEquation(B, C, A);
+	float fc = CaculateLineEquation(C, A, B);
+	//循环限定矩形 [xMin,xMax] * [yMin,yMax]
+	for (int yIndex = yMin; yIndex <= yMax; yIndex++) {
+		for (int xIndex = xMin; xIndex <= xMax; xIndex++) {
+			//每一个需要绘制的屏幕上的点 根据这个点计算重心
+			Point2 point{XPixelToScreen(xIndex), YPixelToScreen(yIndex)};
+			float alpha = CaculateLineEquation(point, B, C) / fa;
+			float beta = CaculateLineEquation(point, C, A) / fb;
+			float gamma = CaculateLineEquation(point, A, B) / fc;
+			array<float, 3> coefficients{alpha, beta, gamma};
+			//判断是否在三角形内部
+			bool inTriangle = std::all_of(coefficients.begin(), coefficients.end(), [](float f) {
+				return f > 0.0f;
+			});
+			if (inTriangle) {
+				useCoefficient(xIndex, yIndex, coefficients);
+			}
+		}
+	}
+}
+
+float Rasterizer::CaculateLineEquation(Point2 p, Point2 p0, Point2 p1) {
+	return (p0.y - p1.y) * p.x + (p1.x - p0.x) * p.y + p0.x * p1.y - p1.x * p0.y;
+}
+
+pair<Point4, tuple<Point2, Vector3, Color>> Rasterizer::CaculateCoefficientData(
+	const array<pair<Point4, tuple<Point2, Vector3, Color>>, 3> & triangleData, 
+	const array<float, 3> & coefficients) {
+	array<Point4, 3> points;
+	array<Point2, 3> coodinates;
+	array<Vector3, 3> normals;
+	array<Color, 3> colors;
+	for (int i = 0; i < 3; i++) {
+		points[i] = triangleData[i].first;
+		coodinates[i] = get<0>(triangleData[i].second);
+		normals[i] = get<1>(triangleData[i].second);
+		colors[i] = get<2>(triangleData[i].second);
+	}
+	float screenOne = coefficients[0] / points[0].w + coefficients[1] / points[1].w + coefficients[2] / points[2].w;
+	//纹理
+	float screenU = coefficients[0] * (coodinates[0].x / points[0].w)
+		+ coefficients[1] * (coodinates[1].x / points[1].w)
+		+ coefficients[2] * (coodinates[2].x / points[2].w);
+	float screenV = coefficients[0] * (coodinates[0].y / points[0].w)
+		+ coefficients[1] * (coodinates[1].y / points[1].w)
+		+ coefficients[2] * (coodinates[2].y / points[2].w);
+	//法线
+	float screenX = coefficients[0] * (normals[0].x / points[0].w)
+		+ coefficients[1] * (normals[1].x / points[1].w)
+		+ coefficients[2] * (normals[2].x / points[2].w);
+	float screenY = coefficients[0] * (normals[0].y / points[0].w)
+		+ coefficients[1] * (normals[1].y / points[1].w)
+		+ coefficients[2] * (normals[2].y / points[2].w);
+	float screenZ = coefficients[0] * (normals[0].z / points[0].w)
+		+ coefficients[1] * (normals[1].z / points[1].w)
+		+ coefficients[2] * (normals[2].z / points[2].w);
+	//颜色
+	float screenR = coefficients[0] * (colors[0].r / points[0].w)
+		+ coefficients[1] * (colors[1].r / points[1].w)
+		+ coefficients[2] * (colors[2].r / points[2].w);
+	float screenG = coefficients[0] * (colors[0].g / points[0].w)
+		+ coefficients[1] * (colors[1].g / points[1].w)
+		+ coefficients[2] * (colors[2].g / points[2].w);
+	float screenB = coefficients[0] * (colors[0].b / points[0].w)
+		+ coefficients[1] * (colors[1].b / points[1].w)
+		+ coefficients[2] * (colors[2].b / points[2].w);
+	//顶点
+	Point4 point = points[0] * coefficients[0] + points[1] * coefficients[1] + points[2] * coefficients[2];
+	Point2 coodinate{screenU / screenOne, screenV / screenOne};
+	Vector3 normal{screenX / screenOne, screenY / screenOne, screenZ / screenOne};
+	Color color{screenR / screenOne, screenG / screenOne, screenB / screenOne};
+	return {point, {coodinate, normal, color}};
+}
+
+void Rasterizer::DrawZBuffer(int x, int y, float z, Color color) {
+	assert(XYInPixel(x, y));
+	assert(ZInViewVolumn(z));
+	int index = ReversePixelToIndex(x, y);
+	if (z < zBuffer[index].first) {
+		zBuffer[index] = {z, color};
+	}
+}
+
+vector<array<Point4, 3>> Rasterizer::WireframeNearPlaneClip(const array<Point4, 3> & points) {
+	//近平面 向量来代表平面 
+	constexpr auto nearPlane = Vector4{0.0f, 0.0f, -1.0f, 0.0f};
+	array<pair<Point4, float>, 3 > vertexs;
+	for (int i = 0; i < 3; i++) {
+		float distance = points[i].GetVector4().Dot(nearPlane);
+		vertexs[i] = {points[i], distance};
+	}
+	//这里不需要背面剔除 直接排序
+	std::sort(vertexs.begin(), vertexs.end(), [](const auto& vertexA, const auto& vertexB) {
+		return vertexA.second < vertexB.second;
+	});
+	auto vertexCount = std::count_if(vertexs.begin(), vertexs.end(), [](const auto& data) {
+		return data.second <= 0.0f;
+	});
+	Point4 point0 = vertexs[0].first;
+	Point4 point1 = vertexs[1].first;
+	Point4 point2 = vertexs[2].first;
+	vector<array<Point4, 3>> result;
+	if (vertexCount == 1) {
+		/*
+					   *Point0
+					   |\   newPoint2
+		  _____________|_\↙______________
+			newPoint1↗|  \
+					   |  /Point1
+					   | /
+					   |/
+					   *Point2
+		*/
+		Point4 newPoint1 = ComputePlanePoint(nearPlane, {point0, point2});
+		Point4 newPoint2 = ComputePlanePoint(nearPlane, {point0, point1});
+		result.reserve(1);
+		result.push_back({point0, newPoint2, newPoint1});
+	} else if(vertexCount == 2) {
+		/*
+					   * Point0
+					   |\
+					   | \
+					   |  \ Point1
+			___________|__/_______________
+					 ↗| /↖
+			newPoint1  |/   newPoint2
+					   *Point2
+		*/
+		Point4 newPoint1 = ComputePlanePoint(nearPlane, {point0, point2});
+		Point4 newPoint2 = ComputePlanePoint(nearPlane, {point1, point2});
+		result.reserve(2);
+		result.push_back({point0, point1, newPoint2});
+		result.push_back({point0, newPoint2, newPoint1});
+	} else if (vertexCount == 3) {
+		result.reserve(1);
+		result.push_back({point0, point1, point2});
+	} else {
+		//pointCount == 0 不需要绘制
+	}
+	return result;
+}
+
+vector<array<Point2, 2>> Rasterizer::WireframeFarPlaneClipAndGetNotRepeatingLines(const vector<array<Point4, 3>> & pointss) {
+	//远平面
+	constexpr auto nearPlane = Vector4{0.0f, 0.0f, 1.0f, -1.0f};
+	vector<array<Point2, 2>> result;
+	//最多7根直线
+	result.reserve(7);
+	for (const auto& points : pointss) {
+		//照搬上面的
+		array<pair<Point4, float>, 3 > vertexs;
+		for (int i = 0; i < 3; i++) {
+			float distance = points[i].GetVector4().Dot(nearPlane);
+			vertexs[i] = {points[i], distance};
+		}
+		std::sort(vertexs.begin(), vertexs.end(), [](const auto& vertexA, const auto& vertexB) {
+			return vertexA.second < vertexB.second;
+		});
+		auto vertexCount = std::count_if(vertexs.begin(), vertexs.end(), [](const auto& data) {
+			return data.second <= 0.0f;
+		});
+		Point4 point0 = vertexs[0].first;
+		Point4 point1 = vertexs[1].first;
+		Point4 point2 = vertexs[2].first;
+		if (vertexCount == 1) {
+		    /*
+						   *Point0
+						   |\   newPoint2
+			  _____________|_\↙______________
+				newPoint1↗|  \
+						   |  /Point1
+						   | /
+						   |/
+						   *Point2
+			*/
+			Point4 newPoint1 = ComputePlanePoint(nearPlane, {point0, point2});
+			Point4 newPoint2 = ComputePlanePoint(nearPlane, {point0, point1});
+			Point2 A = point0.ToPoint2();
+			Point2 B = newPoint1.ToPoint2();
+			Point2 C = newPoint2.ToPoint2();
+			AddNotRepeatingLine(result, {A, B});
+			AddNotRepeatingLine(result, {B, C});
+			AddNotRepeatingLine(result, {C, A});
+		} else if (vertexCount == 2) {
+			/*
+						   * Point0
+						   |\
+						   | \
+						   |  \ Point1
+				___________|__/_______________
+						 ↗| /↖
+				newPoint1  |/   newPoint2
+						   *Point2
+			*/
+			Point4 newPoint1 = ComputePlanePoint(nearPlane, {point0, point2});
+			Point4 newPoint2 = ComputePlanePoint(nearPlane, {point1, point2});
+			//注意这里不需要分成两个三角形 而是画平面上的直线
+			Point2 A = point0.ToPoint2();
+			Point2 B = point1.ToPoint2();
+			Point2 C = newPoint2.ToPoint2();
+			Point2 D = newPoint1.ToPoint2();
+			AddNotRepeatingLine(result, {A, B});
+			AddNotRepeatingLine(result, {B, C});
+			AddNotRepeatingLine(result, {C, D});
+			AddNotRepeatingLine(result, {D, A});
+		} else if (vertexCount == 3) {
+			Point2 A = point0.ToPoint2();
+			Point2 B = point1.ToPoint2();
+			Point2 C = point2.ToPoint2();
+			AddNotRepeatingLine(result, {A, B});
+			AddNotRepeatingLine(result, {B, C});
+			AddNotRepeatingLine(result, {C, A});
+		} else {
+			//pointCount == 0 不需要绘制
+		}
+	}
+	return result;
+}
+
+void Rasterizer::AddNotRepeatingLine(vector<array<Point2, 2>> & lines, const array<Point2, 2> & points) {
+	bool notRepeatingLine = std::find_if(lines.begin(), lines.end(), [](const auto& lineA, const auto& lineB) {
+		//两条直线可能顶点不对应
+		if (((lineA[0] == lineB[0]) && (lineA[1] == lineB[1])) ||
+			((lineA[0] == lineB[1]) && (lineA[1] == lineB[0]))) {
+			return true;
+		}
+		return false;
+	}) == lines.end();
+	if (notRepeatingLine) {
+		lines.push_back(points);
+	}
+}
+
+bool Rasterizer::LineClip(array<Point2, 2> & points) {
+	//边界
+	constexpr float xMin = -1.0f;
+	constexpr float xMax = 1.0f;
+	constexpr float yMin = -1.0f;
+	constexpr float yMax = 1.0F;
+	//使用liang-barsky算法
+	float x0 = points[0].x;
+	float y0 = points[0].y;
+	float x1 = points[1].x;
+	float y1 = points[1].y;
+
+	float deltaX = x1 - x0;
+	float deltaY = y1 - y0;
+
+	float p1 = -deltaX;
+	float p2 = deltaX;
+	float p3 = -deltaY;
+	float p4 = deltaY;
+
+	float q1 = x0 - xMin;
+	float q2 = xMax - x0;
+	float q3 = y0 - yMin;
+	float q4 = yMax - y0;
+
+	//平行并且在框外面
+	if ((deltaX == 0.0f && (q1 <= 0.0f || q2 <= 0.0f)) ||
+		(deltaY == 0.0f && (q3 <= 0.0f || q4 <= 0.0f))) {
+		return false;
+	}
+
+	//储存点所代表的t (x0 + tΔx)
+	//代表取点原本的位置或者边界
+	array<float, 3> t0Array{0.0f, 0.0f, 0.0f};//取最大
+	array<float, 3> t1Array{1.0f, 1.0f, 1.0f};//取最小
+
+	if (deltaX != 0.0f) {
+		float u1 = q1 / p1;
+		float u2 = q2 / p2;
+		if (deltaX > 0.0f) {
+			t0Array[1] = u1;
+			t1Array[1] = u2;
+		} else {
+			t0Array[1] = u2;
+			t1Array[1] = u1;
+		}
+	}
+
+	if (deltaY != 0.0f) {
+		float u3 = q3 / p3;
+		float u4 = q4 / p4;
+		if (deltaY > 0.0f) {
+			t0Array[2] = u3;
+			t1Array[2] = u4;
+		} else {
+			t0Array[2] = u4;
+			t1Array[2] = u3;
+		}
+	}
+
+	float t0 = *std::max_element(t0Array.begin(), t0Array.end());
+	float t1 = *std::min_element(t1Array.begin(), t1Array.end());
+
+	//反过来说明在框外
+	if (t0 >= t1) {
+		return false;
+	}
+
+	float newX0 = x0 + t0 * deltaX;
+	float newY0 = y0 + t0 * deltaY;
+	float newX1 = x0 + t1 * deltaX;
+	float newY1 = y0 + t1 * deltaY;
+
+	points[0] = {newX0, newY0};
+	points[1] = {newX1, newY1};
+	return true;
+}
+
+void Rasterizer::DrawLine(const array<Point2, 2> & points) {
+	/*
+		这里乘以图片比例主要是因为图片比例会导致k > 1 或者 k < -1的情况
+		中点算法一次只能上升或者下降一格像素 当K > 1时 只能取K == 1 (K<-1 同理)
+	*/
+	float y = (points[1].y - points[0].y) * static_cast<float>(height);
+	float x = (points[1].x - points[0].x) * static_cast<float>(width);
+	float k = y / x;
+	/*
+		k < -1 || k >= 1 的情况 可以看作 y = x 轴对称
+		所以只需要反转顶点和图像来绘制即可
+	*/
+	Point2 A;
+	Point2 B;
+	int drawWidth;
+	int drawHeight;
+	bool reverse;
+	if (k >= -1.0f && k < 1.0f) {
+		A = points[0];
+		B = points[1];
+		drawWidth = width;
+		drawHeight = height;
+		reverse = false;
+	} else if (k < -1.0f || k >= 1.0f) {
+		A = Point2{points[0].y, points[0].x};
+		B = Point2{points[1].y, points[1].x};
+		drawWidth = height;
+		drawHeight = width;
+		reverse = true;
+	} else {
+		//两点重合 k = NaN 不画线
+		return;
+	}
+	/*
+		这里开始中点算法 只需要讨论 0 < k < 1 的情况即可
+		-1 < k < 0 使用正负变量来区分
+	*/
+	if (B.x < A.x) {
+		std::swap(B, A);
+	}
+	/*
+		这里直接将非像素中心点 转化成像素中心点
+		可以省很多情况 增加代码可读性
+		而且两种情况画出的线条最多差距1像素
+	*/
+	int xMin = XScreenToPixel(A.x);
+	int xMax = XScreenToPixel(B.x);
+	Point2 pointA{XPixelToScreen(xMin), YPixelToScreen(YScreenToPixel(A.y))};
+	Point2 pointB{XPixelToScreen(xMax), YPixelToScreen(YScreenToPixel(B.y))};
+
+	const float pixelHeight = 1.0f / static_cast<float>(drawHeight);
+	const float halfPixelHeight = 0.5f / pixelHeight;
+	/*
+		使用新K值来画线
+		addtion 区分 线往上走还是往下走 归一成一种情况
+	*/
+	float newk = (pointB.y - pointA.y) / (pointB.x - pointA.x);
+	float addtion = newk > 0.0f ? 1.0f : -1.0f;
+	float middleY = pointA.y + addtion * halfPixelHeight;
+
+	for (int pixelX = xMin; pixelX <= xMax; pixelX++) {
+		float x = XPixelToScreen(pixelX);
+		Point2 middlePoint = Point2{x, middleY};
+		//取[0,1)作为例子 表示在直线是否在上方
+		bool pointUpLine = (addtion * ComputeLineEquation(middlePoint, pointA, pointB)) >= 0.0f;
+		float y = pointUpLine ? (middleY - addtion * halfPixelHeight) : (middleY + addtion * halfPixelHeight);
+		int pixelY = YScreenToPixel(y);
+		//若跑出去了则代表需要提前停止
+		if (!XYInPixel(pixelX, pixelY)) {
+			return;
+		}
+		//这里也需要反转绘制
+		if (reverse) {
+			DrawWritePixel(pixelY, pixelX);
+		} else {
+			DrawWritePixel(pixelX, pixelY);
+		}
+		//取[0,1)作为例子 中点在直线下方 需要提高中点一个单位
+		if (!pointUpLine) {
+			middleY += addtion * pixelHeight;
+		}
+	}
+}
+
+void Rasterizer::DrawWritePixel(int x, int y) {
+	assert(XYInPixel(x, y));
+	//绘制直线所在的深度
+	//保证其他像素写入的时候不会覆盖掉直线
+	constexpr float lineDepth = -1.0f;
+	const Color write = {1.0f, 1.0f, 1.0f};
+	int index = ReversePixelToIndex(x, y);
+	zBuffer[index] = {lineDepth, write};
 }

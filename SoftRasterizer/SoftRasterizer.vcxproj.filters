@@ -24,9 +24,6 @@
     <ClCompile Include="Math.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="Display.cpp">
-      <Filter>源文件</Filter>
-    </ClCompile>
     <ClCompile Include="Application.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
@@ -48,9 +45,6 @@
       <Filter>头文件</Filter>
     </ClInclude>
     <ClInclude Include="Array.h">
-      <Filter>头文件</Filter>
-    </ClInclude>
-    <ClInclude Include="Display.h">
       <Filter>头文件</Filter>
     </ClInclude>
     <ClInclude Include="Rasterizer.h">

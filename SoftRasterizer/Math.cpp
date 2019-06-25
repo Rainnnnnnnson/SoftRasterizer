@@ -131,16 +131,16 @@ Vector4 Point4::GetVector4() const {
 	return {x, y, z, w};
 }
 
+Point2 Point4::ToPoint2() const {
+	return {x / w, y / w};
+}
+
 Vector4 Point4::operator-(Point4 p) const {
 	return Vector4{x - p.x, y - p.y, z - p.z, w - p.w};
 }
 
 Point4 Point4::operator+(Vector4 v) const {
 	return Point4{x + v.x, y + v.y, z + v.z, w + v.w};
-}
-
-Point2 Point4::GetPoint2() const {
-	return Point2{x, y};
 }
 
 Point3 Point4::ToPoint3() const {

@@ -1,7 +1,7 @@
 #include "RGBImage.h"
 #include "Assertion.h"
 #include <algorithm>
-
+#include <cmath>
 unsigned char ColorFloatToByte(float f) {
 	assert(!isnan(f));
 	float test = f * 255.0f;
@@ -13,6 +13,9 @@ unsigned char ColorFloatToByte(float f) {
 		return static_cast<unsigned char>(test);
 	}
 }
+
+RGBColor::RGBColor(unsigned char r, unsigned char g, unsigned char b)
+	: r(r), g(g), b(b) {}
 
 RGBColor::RGBColor(Color color) {
 	r = ColorFloatToByte(color.r);

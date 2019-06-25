@@ -2,8 +2,7 @@
 #include "Assertion.h"
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
-Application::Application(int width, int height) 
-	: rect(0,0,width,height), bitmap(width, height, PixelFormat24bppRGB) {
+Application::Application(int width, int height) : buffer(width,height) {
 	//用这个来获取句柄
 	hInstance = GetModuleHandle(NULL);
 
@@ -57,23 +56,40 @@ RGBImage Application::GetImage(const wchar_t* fileName) const {
 		for (int column = 0; column < width; column++) {
 			Gdiplus::Color color;
 			bitMap->GetPixel(line, column, &color);
-			image.SetPixel(line, column, RGBColor{{color.GetR(), color.GetG(), color.GetB()}});
+			image.SetPixel(line, column, RGBColor{color.GetR(), color.GetG(), color.GetB()});
 		}
 	}
 	return image;
 }
 
 bool Application::Continue() {
+	int width = buffer.GetWidth();
+	int height = buffer.GetHeight();
+	Gdiplus::Graphics graphics(hwnd);
+	Gdiplus::Bitmap bitmap(width, height, PixelFormat24bppRGB);
+	Gdiplus::Rect rect(0, 0, width, height);
+	MSG msg = {};
 	while (msg.message != WM_QUIT) {
 		if (PeekMessage(&msg, 0, 0, 0, PM_REMOVE)) {
 			TranslateMessage(&msg);
 			DispatchMessage(&msg);
 		} else {
-			//这个没办法放在类里面 
-			//如果放入GDI+无法卸载
-			Gdiplus::Graphics graphics(hwnd);
 			PAINTSTRUCT ps;
+			Gdiplus::BitmapData bitmapData;
 			BeginPaint(hwnd, &ps);
+			bitmap.LockBits(&rect, 0, PixelFormat24bppRGB, &bitmapData);
+			for (int y = 0; y < height; y++) {
+				for (int x = 0; x < width; x++) {
+					RGBColor rgb = buffer.GetPixel(x, y);
+					auto p = reinterpret_cast<unsigned char*>(bitmapData.Scan0);
+					int index = y * width + x;
+					int pixelIndex = index * 3;
+					p[pixelIndex + 0] = rgb.b;
+					p[pixelIndex + 1] = rgb.g;
+					p[pixelIndex + 2] = rgb.r;
+				}
+			}
+			bitmap.UnlockBits(&bitmapData);
 			graphics.DrawImage(&bitmap, 0, 0);
 			EndPaint(hwnd, &ps);
 			return true;
@@ -82,25 +98,10 @@ bool Application::Continue() {
 	return false;
 }
 
-void Application::CopyInBuffer(const RGBImage& image) {
-	assert(image.GetWidth == bitmap.GetWidth());
-	assert(image.GetHeight == bitmap.GetHeight());
-	int width = bitmap.GetWidth();
-	int height = bitmap.GetHeight();
-	Gdiplus::BitmapData bitmapData;
-	bitmap.LockBits(&rect, 0, PixelFormat24bppRGB, &bitmapData);
-	for (int y = 0; y < height; y++) {
-		for (int x = 0; x < width; x++) {
-			RGBColor rgb = image.GetPixel(x, y);
-			auto p = reinterpret_cast<unsigned char*>(bitmapData.Scan0);
-			int index = y * width + height;
-			int pixelIndex = index * 3;
-			p[pixelIndex + 0] = rgb.b;
-			p[pixelIndex + 1] = rgb.g;
-			p[pixelIndex + 2] = rgb.r;
-		}
-	}
-	bitmap.UnlockBits(&bitmapData);
+void Application::CopyInBuffer(RGBImage image) {
+	assert(buffer.GetWidth() == image.GetWidth());
+	assert(buffer.GetHeight() == image.GetHeight());
+	buffer = std::move(image);
 }
 
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {

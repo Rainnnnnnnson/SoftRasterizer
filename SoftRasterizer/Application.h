@@ -10,13 +10,11 @@ public:
 	~Application();
 	RGBImage GetImage(const wchar_t* fileName) const;
 	bool Continue();
-	void CopyInBuffer(const RGBImage& image);
+	void CopyInBuffer(RGBImage image);
 private:
 	HINSTANCE hInstance;
 	HWND hwnd;
-	Gdiplus::Rect rect;
-	Gdiplus::Bitmap bitmap;
+	RGBImage buffer;
 	ULONG_PTR gdiplusToken;
 	Gdiplus::GdiplusStartupInput gdiplusStartupInput;
-	MSG msg;
 };

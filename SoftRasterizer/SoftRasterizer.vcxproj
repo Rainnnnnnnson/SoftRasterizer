@@ -128,7 +128,6 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Application.cpp" />
-    <ClCompile Include="Display.cpp" />
     <ClCompile Include="Main.cpp" />
     <ClCompile Include="Math.cpp" />
     <ClCompile Include="Rasterizer.cpp" />
@@ -139,7 +138,6 @@
     <ClInclude Include="Application.h" />
     <ClInclude Include="Array.h" />
     <ClInclude Include="Assertion.h" />
-    <ClInclude Include="Display.h" />
     <ClInclude Include="Math.h" />
     <ClInclude Include="Rasterizer.h" />
     <ClInclude Include="Renderer.h" />
