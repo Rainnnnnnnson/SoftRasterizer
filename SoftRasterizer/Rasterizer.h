@@ -97,6 +97,8 @@ private:
 	bool XYInScreen(float x, float y) const;
 	//判断 z 在 [0,1]中
 	bool ZInViewVolumn(float z) const;
+
+
 	//剪裁近平面 因为顶点顺序问题 需要同时进行背面剪裁
 	vector<array<pair<Point4, tuple<Point2, Vector3, Color>>, 3>> TriangleNearPlaneClipAndBackCull(
 		const array<pair<Point4, tuple<Point2, Vector3, Color>>, 3> & triangleData);
@@ -105,7 +107,7 @@ private:
 	    近平面 N = (0, 0, -1, 0);
 		远平面 N = (0, 0, 1, -1);
 	*/
-	Point4 ComputePlanePoint(Vector4 N, const array<Point4, 2> & points);
+	Point4 CalculatePlanePoint(Vector4 N, const array<Point4, 2> & points);
 	//背面消除
 	bool BackCull(const array<Point2, 3> & vertexs);
 	/*
@@ -113,26 +115,24 @@ private:
 		会生成像素坐标 和 重心系数
 		调用function来使用 这样写主要是为了增强主体函数可读性
 	*/
-	void TriangleRasterization(const array<Point2, 3> & vertexs,
+	void TriangleRasterization(const array<Point2, 3> & points,
 							   const function<void(int, int, const array<float, 3>&)>& useCoefficient);
 	//通过带入顶点计算三角形重心
-	float CaculateLineEquation(Point2 p, Point2 p0, Point2 p1);
+	float CalculateLineEquation(Point2 p, Point2 p0, Point2 p1);
 	//通过屏幕的重心坐标计算插值 需要进行插值矫正
 	pair<Point4, tuple<Point2, Vector3, Color>> CaculateCoefficientData(
 		const array<pair<Point4, tuple<Point2, Vector3, Color>>, 3> & triangleData,
 		const array<float, 3> & coefficients);
 	//颜色写入ZBuffer
 	void DrawZBuffer(int x, int y, float z, Color color);
-	//近平面剪裁 顶点结果与非线框模式保持一致 
-	vector<array<Point4, 3>> WireframeNearPlaneClip(const array<Point4, 3> & vertexs);
+
 	/*
-		远平面剪裁 这里并不是剪裁成三角形
-		非线框模式下根据深度进行消除或保留
-		这里只在远平面 留一条线 并且将不重复线段 加入至其中
+		近平面剪裁 顶点结果与非线框模式保持一致
+		远平面剪裁 剪裁后得到远平面上直线
+		直线不重复
 	*/
-	vector<array<Point2, 2>> WireframeFarPlaneClipAndGetNotRepeatingLines(const vector<array<Point4, 3>> & vertexs);
-	//判断是否有重复并添加直线
-	void AddNotRepeatingLine(vector<array<Point2, 2>> & lines, const array<Point2, 2> & points);
+	vector<array<Point2, 2>>WireframeNearFarPlaneClipAndGetLines(const array<Point4, 3> & points);
+
 	/*
 		Liang-Barsky直线段裁剪
 		获得线段在[-1,1] * [-1,1]中
@@ -230,9 +230,9 @@ inline void Rasterizer::DrawWireframe(const vector<Point3>& vertexs,
 			return i >= 0 && i < colors.size();
 		}));
 		assert(index.texture >= 0 && index.texture < textures.size());
-		array<Point4, 3> mainVertexs;
+		array<Point4, 3> mainPoints;
 		for (int i = 0; i < 3; i++) {
-			mainVertexs[i] = vertexShader(
+			mainPoints[i] = vertexShader(
 				vertexs[index.vertex[i]],
 				coordinates[index.coordinate[i]],
 				normals[index.normal[i]],
@@ -240,8 +240,7 @@ inline void Rasterizer::DrawWireframe(const vector<Point3>& vertexs,
 				textures[index.texture]
 			);
 		}
-		auto clipTriangles = WireframeNearPlaneClip(mainVertexs);
-		auto lines = WireframeFarPlaneClipAndGetNotRepeatingLines(clipTriangles);
+		auto lines = WireframeNearFarPlaneClipAndGetLines(mainPoints);
 		for (auto line : lines) {
 			if (LineClip(line)) {
 				DrawLine(line);
