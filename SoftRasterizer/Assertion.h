@@ -1,8 +1,18 @@
+/*
+	主要是为了避免微软的引入assert.h的同时会引入一堆宏 导致问题的出现
+*/
 #pragma once
-#ifndef _DEBUG
-#define NDEBUG
+
+void assertFunction(wchar_t const* _Message, wchar_t const* _File, unsigned _Line);
+#ifdef _DEBUG
+#define TO_WIDE_CHAR_(s) L ## s
+#define TO_WIDE_CHAR(s) TO_WIDE_CHAR_(s)
+#define assertion(expression) {                                         \
+    if(!(expression)){                                                  \
+        assertFunction(L###expression,TO_WIDE_CHAR(__FILE__),__LINE__); \
+	}                                                                   \
+}
+
+#else
+#define assertion(expression) {}
 #endif
-#include<assert.h>
-//assert会定义两个宏max 和 min 
-#undef max
-#undef min

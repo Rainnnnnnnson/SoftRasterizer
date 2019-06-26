@@ -7,8 +7,8 @@ constexpr Color black = {0.0f, 0.0f, 0.0f};
 Rasterizer::Rasterizer(int width, int height)
 	: width(width), height(height), 
 	zBuffer(static_cast<size_t>(width)* height, {clearDepth, black}) {
-	assert(width > 0);
-	assert(height > 0);
+	assertion(width > 0);
+	assertion(height > 0);
 }
 
 void Rasterizer::Clear() {
@@ -22,7 +22,7 @@ RGBImage Rasterizer::GenerateRGBImage() const {
 	RGBImage image(width, height);
 	for (int y = 0; y < height; y++) {
 		for (int x = 0; x < width; x++) {
-			int index = XYInPixel(x, y);
+			int index = PixelToIndex(x, y);
 			auto zBufferColor = zBuffer[index];
 			image.SetPixel(x, y, zBufferColor.second);
 		}
@@ -30,43 +30,59 @@ RGBImage Rasterizer::GenerateRGBImage() const {
 	return image;
 }
 
-int Rasterizer::PixelToIndex(int x, int y) {
+int Rasterizer::PixelToIndex(int x, int y) const {
 	return y * width + x;
 }
 
-int Rasterizer::ReversePixelToIndex(int x, int y) {
+int Rasterizer::ReversePixelToIndex(int x, int y) const {
 	int reverseY = height - y - 1;
 	return reverseY * width + x;
 }
 
-float Rasterizer::XPixelToScreen(int x) const {
-	float delta = 1.0f / width;
+float Rasterizer::XPixelToScreen(int x, int widthPixelCount) const {
+	float delta = 2.0f / static_cast<float>(widthPixelCount);
 	float start = -1.0f + 0.5f * delta;
 	float addtion = static_cast<float>(x) * delta;
 	return start + addtion;
 }
 
-float Rasterizer::YPixelToScreen(int y) const {
-	float delta = 1.0f / height;
+float Rasterizer::XPixelToScreen(int x) const {
+	return XPixelToScreen(x, width);
+}
+
+float Rasterizer::YPixelToScreen(int y, int heightPixelCount) const {
+	float delta = 2.0f / static_cast<float>(heightPixelCount);
 	float start = -1.0f + 0.5f * delta;
 	float addtion = static_cast<float>(y) * delta;
 	return start + addtion;
 }
 
-int Rasterizer::XScreenToPixel(float x) const {
+float Rasterizer::YPixelToScreen(int y) const {
+	return YPixelToScreen(y, height);
+}
+
+int Rasterizer::XScreenToPixel(float x, int widthPixelCount) const {
 	//当1.0f的时候应该被映射至其中,但是算出来会越界
 	if (x == 1.0f) {
-		return width - 1;
+		return widthPixelCount - 1;
 	}
-	return static_cast<int>(floor(((x + 1.0f) / 2.0f) * static_cast<float>(width)));
+	return static_cast<int>(floor(((x + 1.0f) / 2.0f) * static_cast<float>(widthPixelCount)));
+}
+
+int Rasterizer::XScreenToPixel(float x) const {
+	return XScreenToPixel(x, width);
+}
+
+int Rasterizer::YScreenToPixel(float y, int heightPixelCount) const {
+	//当1.0f的时候应该被映射至其中,但是算出来会越界
+	if (y == 1.0f) {
+		return heightPixelCount - 1;
+	}
+	return static_cast<int>(floor(((y + 1.0f) / 2.0f) * static_cast<float>(heightPixelCount)));
 }
 
 int Rasterizer::YScreenToPixel(float y) const {
-	//当1.0f的时候应该被映射至其中,但是算出来会越界
-	if (y == 1.0f) {
-		return height - 1;
-	}
-	return static_cast<int>(floor(((y + 1.0f) / 2.0f) * static_cast<float>(height)));
+	return XScreenToPixel(y, height);
 }
 
 bool Rasterizer::XYInPixel(int x, int y) const {
@@ -364,8 +380,8 @@ pair<Point4, tuple<Point2, Vector3, Color>> Rasterizer::CaculateCoefficientData(
 }
 
 void Rasterizer::DrawZBuffer(int x, int y, float z, Color color) {
-	assert(XYInPixel(x, y));
-	assert(ZInViewVolumn(z));
+	assertion(XYInPixel(x, y));
+	assertion(ZInViewVolumn(z));
 	int index = ReversePixelToIndex(x, y);
 	if (z < zBuffer[index].first) {
 		zBuffer[index] = {z, color};
@@ -385,6 +401,7 @@ vector<array<Point2, 2>> Rasterizer::WireframeNearFarPlaneClipAndGetLines(const 
 	std::sort(vertexs.begin(), vertexs.end(), [](const auto& vertexA, const auto& vertexB) {
 		return vertexA.second < vertexB.second;
 	});
+	//在平面上方的点
 	auto vertexCount = std::count_if(vertexs.begin(), vertexs.end(), [](const auto& data) {
 		return data.second <= 0.0f;
 	});
@@ -554,7 +571,13 @@ vector<array<Point2, 2>> Rasterizer::WireframeNearFarPlaneClipAndGetLines(const 
 			result.push_back({newScreenPoint2, screenPoint2});
 			result.push_back({screenPoint2, newScreenPoint1});
 		} else {
-			//不需要绘制
+			Point2 screenPoint0 = point0.ToPoint2();
+			Point2 screenPoint1 = point1.ToPoint2();
+			Point2 screenPoint2 = point2.ToPoint2();
+			result.reserve(3);
+			result.push_back({screenPoint0, screenPoint1});
+			result.push_back({screenPoint1, screenPoint2});
+			result.push_back({screenPoint2, screenPoint0});
 		}
 	} else {
 		//pointCount == 0 不需要绘制
@@ -588,8 +611,8 @@ bool Rasterizer::LineClip(array<Point2, 2> & points) {
 	float q4 = yMax - y0;
 
 	//平行并且在框外面
-	if ((deltaX == 0.0f && (q1 <= 0.0f || q2 <= 0.0f)) ||
-		(deltaY == 0.0f && (q3 <= 0.0f || q4 <= 0.0f))) {
+	if ((deltaX == 0.0f && (q1 < 0.0f || q2 < 0.0f)) ||
+		(deltaY == 0.0f && (q3 < 0.0f || q4 < 0.0f))) {
 		return false;
 	}
 
@@ -630,10 +653,12 @@ bool Rasterizer::LineClip(array<Point2, 2> & points) {
 		return false;
 	}
 
-	float newX0 = x0 + t0 * deltaX;
-	float newY0 = y0 + t0 * deltaY;
-	float newX1 = x0 + t1 * deltaX;
-	float newY1 = y0 + t1 * deltaY;
+	//浮点数问题需要限定到 [-1,1]
+	float newX0 = std::clamp(x0 + t0 * deltaX, xMin, xMax);
+	float newY0 = std::clamp(y0 + t0 * deltaY, yMin, yMax);
+	float newX1 = std::clamp(x0 + t1 * deltaX, xMin, xMax);
+	float newY1 = std::clamp(y0 + t1 * deltaY, yMin, yMax);
+
 
 	points[0] = {newX0, newY0};
 	points[1] = {newX1, newY1};
@@ -641,6 +666,8 @@ bool Rasterizer::LineClip(array<Point2, 2> & points) {
 }
 
 void Rasterizer::DrawLine(const array<Point2, 2> & points) {
+	assertion(XYInScreen(points[0].x, points[0].y));
+	assertion(XYInScreen(points[1].x, points[1].y));
 	/*
 		这里乘以图片比例主要是因为图片比例会导致k > 1 或者 k < -1的情况
 		中点算法一次只能上升或者下降一格像素 当K > 1时 只能取K == 1 (K<-1 同理)
@@ -652,22 +679,17 @@ void Rasterizer::DrawLine(const array<Point2, 2> & points) {
 		k < -1 || k >= 1 的情况 可以看作 y = x 轴对称
 		所以只需要反转顶点和图像来绘制即可
 	*/
-	Point2 A;
-	Point2 B;
-	int drawWidth;
-	int drawHeight;
+	Point2 A = points[0];
+	Point2 B = points[1];
+	int drawWidth = width;
+	int drawHeight = height;
 	bool reverse;
 	if (k >= -1.0f && k < 1.0f) {
-		A = points[0];
-		B = points[1];
-		drawWidth = width;
-		drawHeight = height;
 		reverse = false;
 	} else if (k < -1.0f || k >= 1.0f) {
-		A = Point2{points[0].y, points[0].x};
-		B = Point2{points[1].y, points[1].x};
-		drawWidth = height;
-		drawHeight = width;
+		std::swap(A.x, A.y);
+		std::swap(B.x, B.y);
+		std::swap(drawWidth, drawHeight);
 		reverse = true;
 	} else {
 		//两点重合 k = NaN 不画线
@@ -685,32 +707,34 @@ void Rasterizer::DrawLine(const array<Point2, 2> & points) {
 		可以省很多情况 增加代码可读性
 		而且两种情况画出的线条最多差距1像素
 	*/
-	int xMin = XScreenToPixel(A.x);
-	int xMax = XScreenToPixel(B.x);
-	Point2 pointA{XPixelToScreen(xMin), YPixelToScreen(YScreenToPixel(A.y))};
-	Point2 pointB{XPixelToScreen(xMax), YPixelToScreen(YScreenToPixel(B.y))};
+	int xMin = XScreenToPixel(A.x, drawWidth);
+	int xMax = XScreenToPixel(B.x, drawWidth);
+	Point2 pointA{XPixelToScreen(xMin, drawWidth), YPixelToScreen(YScreenToPixel(A.y, drawHeight), drawHeight)};
+	Point2 pointB{XPixelToScreen(xMax, drawWidth), YPixelToScreen(YScreenToPixel(B.y, drawHeight), drawHeight)};
 
-	const float pixelHeight = 1.0f / static_cast<float>(drawHeight);
-	const float halfPixelHeight = 0.5f / pixelHeight;
 	/*
 		使用新K值来画线
 		addtion 区分 线往上走还是往下走 归一成一种情况
 	*/
-	float newk = (pointB.y - pointA.y) / (pointB.x - pointA.x);
-	float addtion = newk > 0.0f ? 1.0f : -1.0f;
+	const float newk = (pointB.y - pointA.y) / (pointB.x - pointA.x);
+	const float addtion = newk >= 0.0f ? 1.0f : -1.0f;
+	const float pixelHeight = 2.0f / static_cast<float>(drawHeight);
+	const float halfPixelHeight = 0.5f * pixelHeight;
+
 	float middleY = pointA.y + addtion * halfPixelHeight;
 
 	for (int pixelX = xMin; pixelX <= xMax; pixelX++) {
-		float x = XPixelToScreen(pixelX);
+		float x = XPixelToScreen(pixelX, drawWidth);
 		Point2 middlePoint = Point2{x, middleY};
 		//取[0,1)作为例子 表示在直线是否在上方
-		bool pointUpLine = (addtion * ComputeLineEquation(middlePoint, pointA, pointB)) >= 0.0f;
-		float y = pointUpLine ? (middleY - addtion * halfPixelHeight) : (middleY + addtion * halfPixelHeight);
-		int pixelY = YScreenToPixel(y);
-		//若跑出去了则代表需要提前停止
-		if (!XYInPixel(pixelX, pixelY)) {
-			return;
+		bool pointUpLine = (addtion * CalculateLineEquation(middlePoint, pointA, pointB)) >= 0.0f;
+		float y;
+		if (pointUpLine) {
+			y = middleY - addtion * halfPixelHeight;
+		} else {
+			y = middleY + addtion * halfPixelHeight;
 		}
+		int pixelY = YScreenToPixel(y, drawHeight);
 		//这里也需要反转绘制
 		if (reverse) {
 			DrawWritePixel(pixelY, pixelX);
@@ -725,7 +749,7 @@ void Rasterizer::DrawLine(const array<Point2, 2> & points) {
 }
 
 void Rasterizer::DrawWritePixel(int x, int y) {
-	assert(XYInPixel(x, y));
+	assertion(XYInPixel(x, y));
 	//绘制直线所在的深度
 	//保证其他像素写入的时候不会覆盖掉直线
 	constexpr float lineDepth = -1.0f;

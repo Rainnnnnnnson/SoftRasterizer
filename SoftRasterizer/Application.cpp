@@ -48,7 +48,7 @@ Application::~Application() {
 
 RGBImage Application::GetImage(const wchar_t* fileName) const {
 	auto bitMap = Gdiplus::Bitmap::FromFile(fileName);
-	assert(bitMap != nullptr);
+	assertion(bitMap != nullptr);
 	int width = bitMap->GetWidth();
 	int height = bitMap->GetHeight();
 	RGBImage image(width, height);
@@ -99,8 +99,8 @@ bool Application::Continue() {
 }
 
 void Application::CopyInBuffer(RGBImage image) {
-	assert(buffer.GetWidth() == image.GetWidth());
-	assert(buffer.GetHeight() == image.GetHeight());
+	assertion(buffer.GetWidth() == image.GetWidth());
+	assertion(buffer.GetHeight() == image.GetHeight());
 	buffer = std::move(image);
 }
 

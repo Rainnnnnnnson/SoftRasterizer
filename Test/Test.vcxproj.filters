@@ -18,37 +18,5 @@
     <ClCompile Include="Main.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="Math.cpp">
-      <Filter>源文件</Filter>
-    </ClCompile>
-    <ClCompile Include="Application.cpp">
-      <Filter>源文件</Filter>
-    </ClCompile>
-    <ClCompile Include="RGBImage.cpp">
-      <Filter>源文件</Filter>
-    </ClCompile>
-    <ClCompile Include="Rasterizer.cpp">
-      <Filter>源文件</Filter>
-    </ClCompile>
-    <ClCompile Include="Assertion.cpp">
-      <Filter>源文件</Filter>
-    </ClCompile>
-  </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="Math.h">
-      <Filter>头文件</Filter>
-    </ClInclude>
-    <ClInclude Include="Assertion.h">
-      <Filter>头文件</Filter>
-    </ClInclude>
-    <ClInclude Include="Rasterizer.h">
-      <Filter>头文件</Filter>
-    </ClInclude>
-    <ClInclude Include="RGBImage.h">
-      <Filter>头文件</Filter>
-    </ClInclude>
-    <ClInclude Include="Application.h">
-      <Filter>头文件</Filter>
-    </ClInclude>
   </ItemGroup>
 </Project>

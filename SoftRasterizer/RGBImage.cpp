@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <cmath>
 unsigned char ColorFloatToByte(float f) {
-	assert(!isnan(f));
+	assertion(!isnan(f));
 	float test = f * 255.0f;
 	if (test <= 0) {
 		return 0;
@@ -37,8 +37,8 @@ Color RGBColor::ToColor() const {
 
 RGBImage::RGBImage(int width, int height) : width(width), height(height),
 rgbs(static_cast<size_t>(width)* height, RGBColor{0, 0, 0}) {
-	assert(width > 0);
-	assert(height > 0);
+	assertion(width > 0);
+	assertion(height > 0);
 }
 
 int RGBImage::GetWidth() const {
@@ -50,30 +50,30 @@ int RGBImage::GetHeight() const {
 }
 
 RGBColor RGBImage::ReverseGetPixel(int x, int y) const {
-	assert(XYInPixel(x, y));
+	assertion(XYInPixel(x, y));
 	return rgbs[ReversePixelToIndex(x, y)];
 }
 
 void RGBImage::ReverseSetPixel(int x, int y, RGBColor rgb) {
-	assert(XYInPixel(x, y));
+	assertion(XYInPixel(x, y));
 	rgbs[ReversePixelToIndex(x, y)] = rgb;
 }
 
 RGBColor RGBImage::GetPixel(int x, int y) const {
-	assert(XYInPixel(x, y));
+	assertion(XYInPixel(x, y));
 	return rgbs[PixelToIndex(x, y)];
 }
 
 void RGBImage::SetPixel(int x, int y, RGBColor rgb) {
-	assert(XYInPixel(x, y));
+	assertion(XYInPixel(x, y));
 	rgbs[PixelToIndex(x, y)] = rgb;
 }
 
 Color RGBImage::BilinearFilter(Point2 p) const {
-	assert(p.x >= 0.0f);
-	assert(p.y >= 0.0f);
-	assert(p.x <= 1.0f);
-	assert(p.y <= 1.0f);
+	assertion(p.x >= 0.0f);
+	assertion(p.y >= 0.0f);
+	assertion(p.x <= 1.0f);
+	assertion(p.y <= 1.0f);
 	float u = p.x * static_cast<float>(width) - 0.5f;
 	float v = p.y * static_cast<float>(height) - 0.5f;
 	//ÏñËØ×ø±ê

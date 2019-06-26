@@ -13,12 +13,13 @@ using std::pair;
 using std::tuple;
 using std::get;
 
+//默认的时候全部都是0
 struct IndexData {
-	array<int, 3> vertex;
-	array<int, 3> coordinate;
-	array<int, 3> normal;
-	array<int, 3> color;
-	int texture;
+	array<int, 3> vertex{0, 0, 0};
+	array<int, 3> coordinate{0, 0, 0};
+	array<int, 3> normal{0, 0, 0};
+	array<int, 3> color{0, 0, 0};
+	int texture = 0;
 };
 
 
@@ -80,16 +81,20 @@ public:
 					   const function<Color(Point4, Point2, Vector3, Color, const Texture&)>& pixelShader);
 private:
 	// 转化之存储内存索引
-	int PixelToIndex(int x, int y);
+	int PixelToIndex(int x, int y) const;
 	// 上下反转 然后转化之存储内存索引
-	int ReversePixelToIndex(int x, int y);
+	int ReversePixelToIndex(int x, int y) const;
 	// x 从像素空间转化至屏幕空间 [0, width - 1] => [-1, 1]
+	float XPixelToScreen(int x, int widthPixelCount) const;
 	float XPixelToScreen(int x) const;
 	// y 从像素空间转化至屏幕空间 [0, height - 1] => [-1, 1]
+	float YPixelToScreen(int y, int heightPixelCount) const;
 	float YPixelToScreen(int y) const;
 	// x 从屏幕空间转化至像素空间 [-1, 1] => [0, width - 1]
+	int XScreenToPixel(float x, int widthPixelCount) const;
 	int XScreenToPixel(float x) const;
 	// y 从屏幕空间转化至像素空间 [-1, 1] => [0, height - 1]
+	int YScreenToPixel(float y, int heightPixelCount) const;
 	int YScreenToPixel(float y) const;
 	//判断 x 在[0, width - 1]中  y 在[0, height - 1]中
 	bool XYInPixel(int x, int y) const;
@@ -159,19 +164,19 @@ inline void Rasterizer::DrawTriangle(const vector<Point3>& vertexs,
 									 const function<Point4(Point3, Point2, Vector3, Color, const Texture&)>& vertexShader, 
 									 const function<Color(Point4, Point2, Vector3, Color, const Texture&)>& pixelShader) {
 	for (const auto& index : indexs) {
-		assert(std::all_of(index.vertex.begin(), index.vertex.end(), [&](int i) {
+		assertion(std::all_of(index.vertex.begin(), index.vertex.end(), [&](int i) {
 			return i >= 0 && i < vertexs.size();
 		}));
-		assert(std::all_of(index.coordinate.begin(), index.coordinate.end(), [&](int i) {
+		assertion(std::all_of(index.coordinate.begin(), index.coordinate.end(), [&](int i) {
 			return i >= 0 && i < coordinates.size();
 		}));
-		assert(std::all_of(index.normal.begin(), index.normal.end(), [&](int i) {
+		assertion(std::all_of(index.normal.begin(), index.normal.end(), [&](int i) {
 			return i >= 0 && i < normals.size();
 		}));
-		assert(std::all_of(index.color.begin(), index.color.end(), [&](int i) {
+		assertion(std::all_of(index.color.begin(), index.color.end(), [&](int i) {
 			return i >= 0 && i < colors.size();
 		}));
-		assert(index.texture >= 0 && index.texture < textures.size());
+		assertion(index.texture >= 0 && index.texture < textures.size());
 		array<Point4, 3> mainVertexs;
 		for (int i = 0; i < 3; i++) {
 			mainVertexs[i] = vertexShader(
@@ -217,19 +222,19 @@ inline void Rasterizer::DrawWireframe(const vector<Point3>& vertexs,
 									  const function<Point4(Point3, Point2, Vector3, Color, const Texture&)>& vertexShader, 
 									  const function<Color(Point4, Point2, Vector3, Color, const Texture&)>& pixelShader) {
 	for (const auto& index : indexs) {
-		assert(std::all_of(index.vertex.begin(), index.vertex.end(), [&](int i) {
-			return i >= 0 && i < vertexs.size();
+		assertion(std::all_of(index.vertex.begin(), index.vertex.end(), [&](int i) {
+			return i >= 0 && i < static_cast<int>(vertexs.size());
 		}));
-		assert(std::all_of(index.coordinate.begin(), index.coordinate.end(), [&](int i) {
-			return i >= 0 && i < coordinates.size();
+		assertion(std::all_of(index.coordinate.begin(), index.coordinate.end(), [&](int i) {
+			return i >= 0 && i < static_cast<int>(coordinates.size());
 		}));
-		assert(std::all_of(index.normal.begin(), index.normal.end(), [&](int i) {
-			return i >= 0 && i < normals.size();
+		assertion(std::all_of(index.normal.begin(), index.normal.end(), [&](int i) {
+			return i >= 0 && i < static_cast<int>(normals.size());
 		}));
-		assert(std::all_of(index.color.begin(), index.color.end(), [&](int i) {
-			return i >= 0 && i < colors.size();
+		assertion(std::all_of(index.color.begin(), index.color.end(), [&](int i) {
+			return i >= 0 && i < static_cast<int>(colors.size());
 		}));
-		assert(index.texture >= 0 && index.texture < textures.size());
+		assertion(index.texture >= 0 && index.texture < static_cast<int>(textures.size()));
 		array<Point4, 3> mainPoints;
 		for (int i = 0; i < 3; i++) {
 			mainPoints[i] = vertexShader(
