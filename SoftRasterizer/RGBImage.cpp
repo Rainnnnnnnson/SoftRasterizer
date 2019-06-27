@@ -14,8 +14,7 @@ unsigned char ColorFloatToByte(float f) {
 	}
 }
 
-RGBColor::RGBColor(unsigned char r, unsigned char g, unsigned char b)
-	: r(r), g(g), b(b) {}
+RGBColor::RGBColor(unsigned char r, unsigned char g, unsigned char b) : r(r), g(g), b(b) {}
 
 RGBColor::RGBColor(Color color) {
 	r = ColorFloatToByte(color.r);
@@ -35,82 +34,64 @@ Color RGBColor::ToColor() const {
 	};
 }
 
-RGBImage::RGBImage(int width, int height) : width(width), height(height),
-rgbs(static_cast<size_t>(width)* height, RGBColor{0, 0, 0}) {
-	assertion(width > 0);
-	assertion(height > 0);
+RGBImage::RGBImage(PixelPointRange range) : range(range), rgbs(range.GetSize(), RGBColor{0, 0, 0}) {}
+
+size_t RGBImage::GetWidth() const {
+	return range.width;
 }
 
-int RGBImage::GetWidth() const {
-	return width;
+size_t RGBImage::GetHeight() const {
+	return range.height;
 }
 
-int RGBImage::GetHeight() const {
-	return height;
+RGBColor RGBImage::GetImagePixel(ImagePixelPoint point) const {
+	assertion(PixelPointInRange(point, range));
+	return rgbs[ImagePixelPointToIndex(point, range)];
 }
 
-RGBColor RGBImage::ReverseGetPixel(int x, int y) const {
-	assertion(XYInPixel(x, y));
-	return rgbs[ReversePixelToIndex(x, y)];
+void RGBImage::SetImagePixel(ImagePixelPoint point, RGBColor rgb) {
+	assertion(PixelPointInRange(point, range));
+	rgbs[ImagePixelPointToIndex(point, range)] = rgb;
 }
 
-void RGBImage::ReverseSetPixel(int x, int y, RGBColor rgb) {
-	assertion(XYInPixel(x, y));
-	rgbs[ReversePixelToIndex(x, y)] = rgb;
+RGBColor RGBImage::GetScreenPixel(ScreenPixelPoint point) const {
+	assertion(PixelPointInRange(point, range));
+	return rgbs[ScreenPixelPointToIndex(point, range)];
 }
 
-RGBColor RGBImage::GetPixel(int x, int y) const {
-	assertion(XYInPixel(x, y));
-	return rgbs[PixelToIndex(x, y)];
+void RGBImage::SetScreenPixel(ScreenPixelPoint point, RGBColor rgb) {
+	assertion(PixelPointInRange(point, range));
+	rgbs[ScreenPixelPointToIndex(point, range)] = rgb;
 }
 
-void RGBImage::SetPixel(int x, int y, RGBColor rgb) {
-	assertion(XYInPixel(x, y));
-	rgbs[PixelToIndex(x, y)] = rgb;
-}
-
-Color RGBImage::BilinearFilter(Point2 p) const {
-	assertion(p.x >= 0.0f);
-	assertion(p.y >= 0.0f);
-	assertion(p.x <= 1.0f);
-	assertion(p.y <= 1.0f);
-	float u = p.x * static_cast<float>(width) - 0.5f;
-	float v = p.y * static_cast<float>(height) - 0.5f;
+Color RGBImage::BilinearFilter(ImageCoordinate coordinate) const {
+	assertion(ImageCoordinateInRangle(coordinate));
+	int width = static_cast<int>(range.width);
+	int height = static_cast<int>(range.height);
+	float u = coordinate.x * static_cast<float>(width) - 0.5f;
+	float v = coordinate.y * static_cast<float>(height) - 0.5f;
 	//像素坐标
 	float u0 = floor(u);
 	float u1 = u0 + 1.0f;
-	float v0 = floor(v);
-	float v1 = v0 + 1.0f;
+	float v0 = ceil(v);
+	float v1 = v0 - 1.0f;
 	//坐标系数
-	float uRight = u1 - u;
 	float uLeft = u - u0;
-	float vUp = v1 - v;
-	float vDown = v - v0;
+	float uRight = u1 - u;
+	float vUp = v0 - v;
+	float vDown = v - v1;
 	//变成整数取数组
 	//超过边界取边界
-	int u0i = std::clamp(static_cast<int>(u0), 0, width - 1);
-	int u1i = std::clamp(static_cast<int>(u1), 0, width - 1);
-	int v0i = std::clamp(static_cast<int>(v0), 0, height - 1);
-	int v1i = std::clamp(static_cast<int>(v1), 0, height - 1);
+	size_t u0i = static_cast<size_t>(std::clamp(static_cast<int>(u0), 0, width - 1));
+	size_t u1i = static_cast<size_t>(std::clamp(static_cast<int>(u1), 0, width - 1));
+	size_t v0i = static_cast<size_t>(std::clamp(static_cast<int>(v0), 0, height - 1));
+	size_t v1i = static_cast<size_t>(std::clamp(static_cast<int>(v1), 0, height - 1));
 	// A B
 	// C D
 	//四个像素
-	Color A = ReverseGetPixel(u0i, v0i).ToColor() * uLeft * vUp;
-	Color B = ReverseGetPixel(u1i, v0i).ToColor() * uRight * vUp;
-	Color C = ReverseGetPixel(u0i, v1i).ToColor() * uLeft * vDown;
-	Color D = ReverseGetPixel(u1i, v1i).ToColor() * uRight * vDown;
+	Color A = GetImagePixel({u0i, v0i}).ToColor() * uLeft * vUp;
+	Color B = GetImagePixel({u1i, v0i}).ToColor() * uRight * vUp;
+	Color C = GetImagePixel({u0i, v1i}).ToColor()* uLeft* vDown;
+	Color D = GetImagePixel({u1i, v1i}).ToColor() * uRight * vDown;
 	return A + B + C + D;
-}
-
-bool RGBImage::XYInPixel(int x, int y) const {
-	return x >= 0 && x < width && y >= 0 && y < height;
-}
-
-int RGBImage::PixelToIndex(int x, int y) const {
-	return y * width + x;
-}
-
-int RGBImage::ReversePixelToIndex(int x, int y) const {
-	int reverseY = height - y - 1;
-	return reverseY * width + x;
 }

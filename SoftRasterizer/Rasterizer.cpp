@@ -1,14 +1,27 @@
 #include "Rasterizer.h"
-//在清空状态深度储存为2.0f
+
+/*
+	在清空状态深度储存为2.0f
+	清空屏幕时为黑色
+*/
 constexpr float clearDepth = 2.0f;
-//清空屏幕时为黑色
 constexpr Color black = {0.0f, 0.0f, 0.0f};
 
-Rasterizer::Rasterizer(int width, int height)
-	: width(width), height(height), 
-	zBuffer(static_cast<size_t>(width)* height, {clearDepth, black}) {
-	assertion(width > 0);
-	assertion(height > 0);
+/*
+	使用pair array tuple 导致代码难读
+	这里使用using来消除
+	.cpp文件内需要复制一份
+*/
+using VertexData = tuple<Point2, Vector3, Color>;
+using Vertex = pair<Point4, VertexData>;
+using VertexTriangle = array<Vertex, 3>;
+using PointTriangle = array<Point4, 3>;
+using GravityCoefficient = array<float, 3>;
+using ScreenTriangle = array<Point2, 3>;
+using ScreenLine = array<Point2, 2>;
+
+Rasterizer::Rasterizer(PixelPointRange range)
+	: range(range),zBuffer(range.GetSize(), {clearDepth, black}) {
 }
 
 void Rasterizer::Clear() {
@@ -19,331 +32,144 @@ void Rasterizer::Clear() {
 }
 
 RGBImage Rasterizer::GenerateRGBImage() const {
-	RGBImage image(width, height);
-	for (int y = 0; y < height; y++) {
-		for (int x = 0; x < width; x++) {
-			int index = PixelToIndex(x, y);
-			auto zBufferColor = zBuffer[index];
-			image.SetPixel(x, y, zBufferColor.second);
+	RGBImage image(range);
+	size_t width = range.width;
+	size_t height = range.height;
+	for (size_t y = 0; y < height; y++) {
+		for (size_t x = 0; x < width; x++) {
+			int index = ImagePixelPointToIndex({x, y}, range);
+			auto color = zBuffer[index].second;
+			image.SetImagePixel({x, y}, color);
 		}
 	}
 	return image;
 }
 
-int Rasterizer::PixelToIndex(int x, int y) const {
-	return y * width + x;
-}
-
-int Rasterizer::ReversePixelToIndex(int x, int y) const {
-	int reverseY = height - y - 1;
-	return reverseY * width + x;
-}
-
-float Rasterizer::XPixelToScreen(int x, int widthPixelCount) const {
-	float delta = 2.0f / static_cast<float>(widthPixelCount);
-	float start = -1.0f + 0.5f * delta;
-	float addtion = static_cast<float>(x) * delta;
-	return start + addtion;
-}
-
-float Rasterizer::XPixelToScreen(int x) const {
-	return XPixelToScreen(x, width);
-}
-
-float Rasterizer::YPixelToScreen(int y, int heightPixelCount) const {
-	float delta = 2.0f / static_cast<float>(heightPixelCount);
-	float start = -1.0f + 0.5f * delta;
-	float addtion = static_cast<float>(y) * delta;
-	return start + addtion;
-}
-
-float Rasterizer::YPixelToScreen(int y) const {
-	return YPixelToScreen(y, height);
-}
-
-int Rasterizer::XScreenToPixel(float x, int widthPixelCount) const {
-	//当1.0f的时候应该被映射至其中,但是算出来会越界
-	if (x == 1.0f) {
-		return widthPixelCount - 1;
+void Rasterizer::DrawZBuffer(ScreenPixelPoint point, float depth, Color color) {
+	assertion(PixelPointInRange(point, range));
+	assertion(DepthInViewVolumn(depth));
+	size_t index = ScreenPixelPointToIndex(point, range);
+	if (depth < zBuffer[index].first) {
+		zBuffer[index].first = depth;
+		zBuffer[index].second = color;
 	}
-	return static_cast<int>(floor(((x + 1.0f) / 2.0f) * static_cast<float>(widthPixelCount)));
 }
 
-int Rasterizer::XScreenToPixel(float x) const {
-	return XScreenToPixel(x, width);
+void Rasterizer::DrawWritePixel(ScreenPixelPoint point) {
+	assertion(PixelPointInRange(point, range));
+	constexpr float depth = -1.0f;
+	constexpr Color write = {1.0f, 1.0f, 1.0f};
+	size_t index = ScreenPixelPointToIndex(point, range);
+	zBuffer[index].first = depth;
+	zBuffer[index].second = write;
 }
 
-int Rasterizer::YScreenToPixel(float y, int heightPixelCount) const {
-	//当1.0f的时候应该被映射至其中,但是算出来会越界
-	if (y == 1.0f) {
-		return heightPixelCount - 1;
-	}
-	return static_cast<int>(floor(((y + 1.0f) / 2.0f) * static_cast<float>(heightPixelCount)));
+Point2 Rasterizer::ConvertToScreenPoint(Point4 p) const {
+	return {p.x / p.w, p.y / p.w};
 }
 
-int Rasterizer::YScreenToPixel(float y) const {
-	return XScreenToPixel(y, height);
-}
-
-bool Rasterizer::XYInPixel(int x, int y) const {
-	return x >= 0 && x < width && y >= 0 && y < height;
-}
-
-bool Rasterizer::XYInScreen(float x, float y) const {
-	return x >= -1.0f && x <= 1.0f && y >= -1.0f && y <= 1.0f;
-}
-
-bool Rasterizer::ZInViewVolumn(float z) const {
-	return z >= 0.0f && z <= 1.0f;
-}
-
-vector<array<pair<Point4, tuple<Point2, Vector3, Color>>, 3>> Rasterizer::TriangleNearPlaneClipAndBackCull(
-	const array<pair<Point4, tuple<Point2, Vector3, Color>>, 3> & triangleData) {
-	//近平面 向量来代表平面 
-	constexpr auto nearPlane = Vector4{0.0f, 0.0f, -1.0f, 0.0f};
-	array<pair<pair<Point4, tuple<Point2, Vector3, Color>>, float>, 3> vertexs;
-	for (int i = 0; i < 3; i++) {
-		float distance = triangleData[i].first.GetVector4().Dot(nearPlane);
-		vertexs[i] = {triangleData[i], distance};
-	}
+float Rasterizer::CalculatePlaneInterpolationCoefficient(Vector4 plane, Point4 p0, Point4 p1) const {
 	/*
-		因为顶点需要排序 得到对应顺序后剪裁
-		每次进行一次交换 代表三角形顶点顺时针逆时针将会转变
-		一个三角形最多需要交换三次顶点
-		根据4种情况的列举可得 !(BackCull(triangle) ^ reverse) 可以确定是否需要绘制
+		Ax + By + Cz + Dw = 0
+		plane(A, B, C, D)
+		P = (x, y, z, w) = A + t(B - A)
+		plane[A + t(B - A)] = 0
 	*/
-	bool reverse = false;
-	if (vertexs[2].second < vertexs[1].second) {
-		std::swap(vertexs[2], vertexs[1]);
-		reverse = !reverse;
-	}
-	if (vertexs[1].second < vertexs[0].second) {
-		std::swap(vertexs[1], vertexs[0]);
-		reverse = !reverse;
-	}
-	if (vertexs[2].second < vertexs[1].second) {
-		std::swap(vertexs[2], vertexs[1]);
-		reverse = !reverse;
-	}
-	//近平面梯度指向Z轴负方向 这样可以得到需要保留点的个数
-	auto vertexCount = std::count_if(vertexs.begin(), vertexs.end(), [](const auto& data) {
-		return data.second <= 0.0f;
+	Point4 A = p0;
+	Point4 B = p1;
+	Vector4 AB = B - A;
+	float t = -(plane.Dot(A.GetVector4())) / (plane.Dot(AB));
+	return t;
+}
+
+Vertex Rasterizer::CalculateInterpolationVertex(float t, const Vertex& p0, const Vertex& p1) const {
+	Point4 A = p0.first;
+	Point4 B = p0.first;
+	VertexData dataA = p0.second;
+	VertexData dataB = p1.second;
+	Point4 point = A * (1.0f - t) + B * t;
+	Point2 coordinate = get<0>(dataA) * (1.0f - t) + get<0>(dataB) * t;
+	Vector3 normal = get<1>(dataA) * (1.0f - t) + get<1>(dataB) * t;
+	Color color = get<2>(dataA) * (1.0f - t) + get<2>(dataB) * t;
+	return{point, {coordinate, normal, color}};
+}
+
+Point4 Rasterizer::CalculatePlanePoint(Vector4 plane, Point4 p0, Point4 p1) const {
+	float t = CalculatePlaneInterpolationCoefficient(plane, p0, p1);
+	return p0 * (1.0f - t) + p1 * t;
+}
+
+float Rasterizer::CalculatePlaneDistance(Vector4 plane, Point4 point) const {
+	return plane.Dot(point.GetVector4());
+}
+
+float Rasterizer::CalculateLineEquation(Point2 p, Point2 p0, Point2 p1) const {
+	return (p0.y - p1.y) * p.x + (p1.x - p0.x) * p.y + p0.x * p1.y - p1.x * p0.y;
+}
+
+bool Rasterizer::ViewVolumnCull(const PointTriangle& points) const {
+	constexpr auto left = Vector4{-1.0f, 0.0f, 0.0f, -1.0f};
+	constexpr auto right = Vector4{1.0f, 0.0f, 0.0f, -1.0f};
+	constexpr auto bottom = Vector4{0.0f, -1.0f, 0.0f, -1.0f};
+	constexpr auto top = Vector4{0.0f, 1.0f, 0.0f, -1.0f};
+	constexpr auto near = Vector4{0.0f, 0.0f, -1.0f, 0.0f};
+	constexpr auto far = Vector4{0.0f, 0.0f, 1.0f, 1.0f};
+	bool notOutLeft = std::all_of(points.begin(), points.end(), [](auto point) {
+		return CalculatePlaneDistance(left, point) <= 0.0f;
 	});
-	//需要使用顶点来计算剪裁后的插值
-	Point4 point0 = vertexs[0].first.first;
-	Point4 point1 = vertexs[1].first.first;
-	Point4 point2 = vertexs[2].first.first;
-	vector<array<pair<Point4, tuple<Point2, Vector3, Color>>, 3>> result;
-	/*
-		分四种情况讨论
-		其中两种需要剪裁
-		两种不需要剪裁
-	*/
-	if (vertexCount == 1) {
-		/*
-					   *Point0
-					   |\   newPoint2
-		  _____________|_\↙______________
-			newPoint1↗|  \
-					   |  /Point1
-					   | /
-					   |/
-					   *Point2
-		*/
-		Point4 newPoint1 = CalculatePlanePoint(nearPlane, {point0, point2});
-		Point4 newPoint2 = CalculatePlanePoint(nearPlane, {point0, point1});
-		/*
-			使用新顶点构造三角形来确定是否绘制
-			保持顺时针传入 再根据reverse综合判断
-		*/
-		array<Point2, 3> testTriangle{point0.ToPoint2(), newPoint2.ToPoint2(), newPoint1.ToPoint2()};
-		if (!(BackCull(testTriangle) ^ reverse)) {
-		    /*
-				计算两个顶点的线性插值
-				因为是近平面剪裁必定过近平面 但需要确定使用w插值 还是z插值
-				透视投影情况下 使用w插值 w = 顶点原始z
-				正交投影情况下 使用z插值 w = 1
-				使用 平面两侧的顶点 w == 1 同时成立 判断是否为正交投影
-		    */
-			float t1;
-			float t2;
-			bool orthographic = (point0.w == 1.0f && point2.w == 1.0f);
-			if (orthographic) {
-				t1 = (newPoint1.z - point0.z) / (point2.z - point0.z);
-				t2 = (newPoint2.z - point1.z) / (point2.z - point1.z);
-			} else {
-				t1 = (newPoint1.w - point0.w) / (point2.w - point0.w);
-				t2 = (newPoint2.w - point1.w) / (point2.w - point1.w);
-			}
-			//计算顶点数据插值
-			const auto& data0 = vertexs[0].first.second;
-			const auto& data1 = vertexs[1].first.second;
-			const auto& data2 = vertexs[2].first.second;
-			Point2 newCoordinate1 = get<0>(data0) * (1.0f - t1) + get<0>(data2) * t1;
-			Point2 newCoordinate2 = get<0>(data0) * (1.0f - t2) + get<0>(data1) * t2;
-			Vector3 newNormal1 = get<1>(data0) * (1.0f - t1) + get<1>(data2) * t1;
-			Vector3 newNormal2 = get<1>(data0) * (1.0f - t2) + get<1>(data1) * t2;
-			Color newColor1 = get<2>(data0) * (1.0f - t1) + get<2>(data2) * t1;
-			Color newColor2 = get<2>(data0) * (1.0f - t2) + get<2>(data1) * t2;
-		    //通过顶点加入至容器还是按照顺时针加入
-			const auto& vertex0 = vertexs[0].first;
-			auto newVertex1 = 
-				pair<Point4, tuple<Point2, Vector3, Color>>{newPoint1, {newCoordinate1, newNormal1, newColor1}};
-			auto newVertex2 = 
-				pair<Point4, tuple<Point2, Vector3, Color>>{newPoint2, {newCoordinate2, newNormal2, newColor2}};
-			result.reserve(1);
-			result.push_back({vertex0, newVertex2, newVertex1});
-		}
-	} else if (vertexCount == 2) {
-		//这里的逻辑和上面相似不再重复注释
-		/*
-					   * Point0
-					   |\
-					   | \
-					   |  \ Point1
-			___________|__/_______________
-					 ↗| /↖
-			newPoint1  |/   newPoint2
-					   *Point2
-		*/
-		Point4 newPoint1 = CalculatePlanePoint(nearPlane, {point0, point2});
-		Point4 newPoint2 = CalculatePlanePoint(nearPlane, {point1, point2});
-		array<Point2, 3> testTriangle{point0.ToPoint2(), newPoint2.ToPoint2(), newPoint1.ToPoint2()};
-		if (!(BackCull(testTriangle) ^ reverse)) {
-			float t1;
-			float t2;
-			bool orthographic = (point0.w == 1.0f && point2.w == 1.0f);
-			if (orthographic) {
-				t1 = (newPoint1.z - point0.z) / (point2.z - point0.z);
-				t2 = (newPoint2.z - point1.z) / (point2.z - point1.z);
-			} else {
-				t1 = (newPoint1.w - point0.w) / (point2.w - point0.w);
-				t2 = (newPoint2.w - point1.w) / (point2.w - point1.w);
-			}
-			const auto& data0 = vertexs[0].first.second;
-			const auto& data1 = vertexs[1].first.second;
-			const auto& data2 = vertexs[2].first.second;
-			Point2 newCoordinate1 = get<0>(data0) * (1.0f - t1) + get<0>(data2) * t1;
-			Point2 newCoordinate2 = get<0>(data1) * (1.0f - t2) + get<0>(data2) * t2;
-			Vector3 newNormal1 = get<1>(data0) * (1.0f - t1) + get<1>(data2) * t1;
-			Vector3 newNormal2 = get<1>(data1) * (1.0f - t2) + get<1>(data2) * t2;
-			Color newColor1 = get<2>(data0) * (1.0f - t1) + get<2>(data2) * t1;
-			Color newColor2 = get<2>(data1) * (1.0f - t2) + get<2>(data2) * t2;
-			const auto& vertex0 = vertexs[0].first;
-			const auto& vertex1 = vertexs[1].first;
-			auto newVertex1 =
-				pair<Point4, tuple<Point2, Vector3, Color>>{newPoint1, {newCoordinate1, newNormal1, newColor1}};
-			auto newVertex2 =
-				pair<Point4, tuple<Point2, Vector3, Color>>{newPoint2, {newCoordinate2, newNormal2, newColor2}};
-			result.reserve(2);
-			result.push_back({vertex0, vertex1, newVertex2});
-			result.push_back({vertex0, newVertex2, newVertex1});
-		}
-	} else if (vertexCount == 3) {
-		//不需要剪裁
-		array<Point2, 3> testTriangle{point0.ToPoint2(), point1.ToPoint2(), point2.ToPoint2()};
-		if (!(BackCull(testTriangle) ^ reverse)) {
-			result.reserve(1);
-			result.push_back({vertexs[0].first, vertexs[1].first, vertexs[2].first});
-		}
-	} else {
-		//pointCount == 0 不需要绘制
-	}
-	return result;
-}
-
-Point4 Rasterizer::CalculatePlanePoint(Vector4 N, const array<Point4, 2> & points) {
-	/*
-		在w还没有归一化的时候
-		透视投影和正交投影都是线性的
-		计算两点与平面的系数t
-		这里扩展到四维 方法和三维一样
-		N[A + t(B - A)] = 0
-		t = - (N * A) / (N * (B - A))
-	*/
-	Point4 A = points[0];
-	Point4 B = points[1];
-	Vector4 BA = B - A;
-	float t = -(N.Dot(A.GetVector4())) / (N.Dot(BA));
-	Point4 p = A + (BA * t);
-	return p;
-}
-
-bool Rasterizer::BackCull(const array<Point2, 3> & points) {
-	Point3 A{points[0].x, points[0].y, 0.0f};
-	Point3 B{points[1].x, points[1].y, 0.0f};
-	Point3 C{points[2].x, points[2].y, 0.0f};
-	Vector3 BA = B - A;
-	Vector3 CB = C - B;
-	Vector3 cross = BA.Cross(CB);
-	Vector3 z{0.0f, 0.0f, 1.0f};
-	if ((cross.Dot(z)) < 0.0f) {
+	bool notOutRight = std::all_of(points.begin(), points.end(), [](auto point) {
+		return CalculatePlaneDistance(right, point) <= 0.0f;
+	});
+	bool notOutBottom = std::all_of(points.begin(), points.end(), [](auto point) {
+		return CalculatePlaneDistance(bottom, point) <= 0.0f;
+	});
+	bool notOutTop = std::all_of(points.begin(), points.end(), [](auto point) {
+		return CalculatePlaneDistance(top, point) <= 0.0f;
+	});
+	bool notOutNear = std::all_of(points.begin(), points.end(), [](auto point) {
+		return CalculatePlaneDistance(near, point) <= 0.0f;
+	});
+	bool notOutFar = std::all_of(points.begin(), points.end(), [](auto point) {
+		return CalculatePlaneDistance(far, point) <= 0.0f;
+	});
+	if (notOutLeft && notOutRight && notOutBottom && notOutTop && notOutNear && notOutFar) {
 		return false;
 	}
 	return true;
 }
 
-void Rasterizer::TriangleRasterization(const array<Point2, 3> & points, 
-									   const function<void(int, int, const array<float, 3>&)>& useCoefficient) {
-	//获取三角形中顶点最大最小的x y值
-	//用于计算需要绘制的边框
-	array<float, 3> xValue;
-	array<float, 3> yValue;
-	for (int i = 0; i < 3; i++) {
-		xValue[i] = points[i].x;
-		yValue[i] = points[i].y;
-	}
-	std::sort(xValue.begin(), xValue.end(), std::less<float>());
-	std::sort(yValue.begin(), yValue.end(), std::less<float>());
-	//确定需要绘制的边界
-	int xMax = std::min(XScreenToPixel(xValue[2]), width - 1);
-	int xMin = std::max(XScreenToPixel(xValue[0]), 0);
-	int yMax = std::min(YScreenToPixel(yValue[2]), height - 1);
-	int yMin = std::max(YScreenToPixel(yValue[0]), 0);
-	Point2 A = points[0];
-	Point2 B = points[1];
-	Point2 C = points[2];
-	float fa = CalculateLineEquation(A, B, C);
-	float fb = CalculateLineEquation(B, C, A);
-	float fc = CalculateLineEquation(C, A, B);
-	//循环限定矩形 [xMin,xMax] * [yMin,yMax]
-	for (int yIndex = yMin; yIndex <= yMax; yIndex++) {
-		for (int xIndex = xMin; xIndex <= xMax; xIndex++) {
-			//每一个需要绘制的屏幕上的点 根据这个点计算重心
-			Point2 point{XPixelToScreen(xIndex), YPixelToScreen(yIndex)};
-			float alpha = CalculateLineEquation(point, B, C) / fa;
-			float beta = CalculateLineEquation(point, C, A) / fb;
-			float gamma = CalculateLineEquation(point, A, B) / fc;
-			array<float, 3> coefficients{alpha, beta, gamma};
-			//判断是否在三角形内部
-			bool inTriangle = std::all_of(coefficients.begin(), coefficients.end(), [](float f) {
-				return f > 0.0f;
-			});
-			if (inTriangle) {
-				useCoefficient(xIndex, yIndex, coefficients);
-			}
-		}
-	}
+bool Rasterizer::BackCull(const PointTriangle& points) const {
+	constexpr Vector3 z{0.0f, 0.0f, 1.0f};
+	Point3 A = points[0].ToPoint3();
+	Point3 B = points[1].ToPoint3();
+	Point3 C = points[2].ToPoint3();
+	Vector3 BA = B - A;
+	Vector3 CB = C - B;
+	Vector3 cross = BA.Cross(CB);
+	bool cull = cross.Dot(z) >= 0.0f;
+	return cull;
 }
 
-float Rasterizer::CalculateLineEquation(Point2 p, Point2 p0, Point2 p1) {
-	return (p0.y - p1.y) * p.x + (p1.x - p0.x) * p.y + p0.x * p1.y - p1.x * p0.y;
+Point4 Rasterizer::CalculatePointByCoefficient(const GravityCoefficient& coefficients,
+											   const PointTriangle& points) const {
+	return points[0] * coefficients[0] + points[1] * coefficients[1] + points[2] * coefficients[2];
 }
 
-pair<Point4, tuple<Point2, Vector3, Color>> Rasterizer::CaculateCoefficientData(
-	const array<pair<Point4, tuple<Point2, Vector3, Color>>, 3> & triangleData, 
-	const array<float, 3> & coefficients) {
+VertexData Rasterizer::CalculateVertexData(const GravityCoefficient& coefficients,
+										   const VertexTriangle& vertexs) const {
 	array<Point4, 3> points;
 	array<Point2, 3> coodinates;
 	array<Vector3, 3> normals;
 	array<Color, 3> colors;
 	for (int i = 0; i < 3; i++) {
-		points[i] = triangleData[i].first;
-		coodinates[i] = get<0>(triangleData[i].second);
-		normals[i] = get<1>(triangleData[i].second);
-		colors[i] = get<2>(triangleData[i].second);
+		points[i] = vertexs[i].first;
+		coodinates[i] = get<0>(vertexs[i].second);
+		normals[i] = get<1>(vertexs[i].second);
+		colors[i] = get<2>(vertexs[i].second);
 	}
-	float screenOne = coefficients[0] / points[0].w + coefficients[1] / points[1].w + coefficients[2] / points[2].w;
+	float screenOne = coefficients[0] / points[0].w 
+		+ coefficients[1] / points[1].w 
+		+ coefficients[2] / points[2].w;
 	//纹理
 	float screenU = coefficients[0] * (coodinates[0].x / points[0].w)
 		+ coefficients[1] * (coodinates[1].x / points[1].w)
@@ -371,213 +197,365 @@ pair<Point4, tuple<Point2, Vector3, Color>> Rasterizer::CaculateCoefficientData(
 	float screenB = coefficients[0] * (colors[0].b / points[0].w)
 		+ coefficients[1] * (colors[1].b / points[1].w)
 		+ coefficients[2] * (colors[2].b / points[2].w);
-	//顶点
-	Point4 point = points[0] * coefficients[0] + points[1] * coefficients[1] + points[2] * coefficients[2];
 	Point2 coodinate{screenU / screenOne, screenV / screenOne};
 	Vector3 normal{screenX / screenOne, screenY / screenOne, screenZ / screenOne};
 	Color color{screenR / screenOne, screenG / screenOne, screenB / screenOne};
-	return {point, {coodinate, normal, color}};
+	return {coodinate, normal, color};
 }
 
-void Rasterizer::DrawZBuffer(int x, int y, float z, Color color) {
-	assertion(XYInPixel(x, y));
-	assertion(ZInViewVolumn(z));
-	int index = ReversePixelToIndex(x, y);
-	if (z < zBuffer[index].first) {
-		zBuffer[index] = {z, color};
-	}
-}
-
-vector<array<Point2, 2>> Rasterizer::WireframeNearFarPlaneClipAndGetLines(const array<Point4, 3> & points) {
-	//近平面和远平面 向量表示平面 
+vector<VertexTriangle> Rasterizer::TriangleNearPlaneClipAndBackCull(const VertexTriangle& vertexs) const {
 	constexpr auto nearPlane = Vector4{0.0f, 0.0f, -1.0f, 0.0f};
-	constexpr auto farPlane = Vector4{0.0f, 0.0f, 1.0f, -1.0f};
-	array<pair<Point4, float>, 3> vertexs;
-	for (int i = 0; i < 3; i++) {
-		float distance = points[i].GetVector4().Dot(nearPlane);
-		vertexs[i] = {points[i], distance};
-	}
-	//这里不需要背面剔除 直接排序
-	std::sort(vertexs.begin(), vertexs.end(), [](const auto& vertexA, const auto& vertexB) {
-		return vertexA.second < vertexB.second;
+	vector<VertexTriangle> result;
+	//先要判断是否三个点同时在近平面内
+	bool allInNearPlane = std::all_of(vertexs.begin(), vertexs.end(), [](const auto& vertex) {
+		return CalculatePlaneDistance(nearPlane, vertexs[i].first) == 0.0f;
 	});
-	//在平面上方的点
-	auto vertexCount = std::count_if(vertexs.begin(), vertexs.end(), [](const auto& data) {
+	if (allInNearPlane) {
+		result.reserve(1);
+		result.push_back(vertexs);
+		return result;
+	}
+
+	array<pair<Vertex, float>, 3> vertexDistances;
+	for (int i = 0; i < 3; i++) {
+		vertexDistances[i].first = vertexs[i];
+		vertexDistances[i].second = CalculatePlaneDistance(nearPlane, vertexs[i].first);
+	}
+	/*
+		因为顶点需要排序 得到对应顺序后剪裁
+		每次进行一次交换 代表三角形顶点顺时针逆时针将会转变
+		一个三角形最多需要交换三次顶点
+		根据4种情况的列举可得 !(BackCull(triangle) ^ reverse) 可以确定是否需要绘制
+		使用新顶点构造三角形来确定是否绘制
+		保持顺时针传入 再根据reverse综合判断
+	*/
+	bool reverse = false;
+	if (vertexDistances[2].second < vertexDistances[1].second) {
+		std::swap(vertexDistances[2], vertexDistances[1]);
+		reverse = !reverse;
+	}
+	if (vertexDistances[1].second < vertexDistances[0].second) {
+		std::swap(vertexDistances[1], vertexDistances[0]);
+		reverse = !reverse;
+	}
+	if (vertexDistances[2].second < vertexDistances[1].second) {
+		std::swap(vertexDistances[2], vertexDistances[1]);
+		reverse = !reverse;
+	}
+	//计算保留的点
+	auto keepPointCount = std::count_if(vertexDistances.begin(), vertexDistances.end(), [](const auto& data) {
 		return data.second <= 0.0f;
 	});
-	Point4 point0 = vertexs[0].first;
-	Point4 point1 = vertexs[1].first;
-	Point4 point2 = vertexs[2].first;
-	vector<array<Point2, 2>> result;
-	if (vertexCount == 1) {
-		/*             *Point0
-			newPoint4  |\  newPoint3
-		  ___________↘|_\↙_________________第二次剪裁(如果需要剪裁)
-		  _____________|__\_________________ 第一次剪裁
-			newPoint1↗|   \↖newPoint2
-					   |  /Point1
+	//需要使用顶点来计算剪裁后的插值
+	Point4 A = vertexDistances[0].first.first;
+	Point4 B = vertexDistances[1].first.first;
+	Point4 C = vertexDistances[2].first.first;
+	const Vertex& vertexA = vertexDistances[0].first;
+	const Vertex& vertexB = vertexDistances[1].first;
+	const Vertex& vertexC = vertexDistances[2].first;
+	if (keepPointCount == 1) {
+		/*
+					   *A
+					   |\   F
+		  _____________|_\↙______________近平面
+				    E↗|  \
+					   |  /↖B
 					   | /
 					   |/
-					   *Point2
+					   *C
 		*/
-		Point4 newPoint1 = CalculatePlanePoint(nearPlane, {point0, point2});
-		Point4 newPoint2 = CalculatePlanePoint(nearPlane, {point0, point1});
-		//判断Point0是否需要剪裁
-		bool needClip = point0.GetVector4().Dot(farPlane) > 0.0f;
-		if (needClip) {
-			Point4 newPoint3 = CalculatePlanePoint(nearPlane, {point0, newPoint2});
-			Point4 newPoint4 = CalculatePlanePoint(nearPlane, {point0, newPoint1});
-			Point2 newScreenPoint1 = newPoint1.ToPoint2();
-			Point2 newScreenPoint2 = newPoint2.ToPoint2();
-			Point2 newScreenPoint3 = newPoint3.ToPoint2();
-			Point2 newScreenPoint4 = newPoint4.ToPoint2();
-			result.reserve(4);
-			result.push_back({newScreenPoint1, newScreenPoint2});
-			result.push_back({newScreenPoint2, newScreenPoint3});
-			result.push_back({newScreenPoint3, newScreenPoint4});
-			result.push_back({newScreenPoint4, newScreenPoint1});
-		} else {
-			Point2 screenPoint0 = point0.ToPoint2();
-			Point2 newScreenPoint1 = newPoint1.ToPoint2();
-			Point2 newScreenPoint2 = newPoint2.ToPoint2();
-			result.reserve(3);
-			result.push_back({screenPoint0, newScreenPoint2});
-			result.push_back({newScreenPoint2, newScreenPoint1});
-			result.push_back({newScreenPoint1, screenPoint0});
+		float tAEC = CalculatePlaneInterpolationCoefficient(nearPlane, A, C);
+		float tAFB = CalculatePlaneInterpolationCoefficient(nearPlane, A, B);
+		Point4 E = A * (1.0f - tAEC) + C * (tAEC);
+		Point4 F = A * (1.0f - tAFB) + B * (tAFB);
+		PointTriangle testTriangle{A, E, F};
+		if (!(BackCull(testTriangle) ^ reverse)) {
+			auto vertexF = CalculateInterpolationVertex(tAEC, vertexA, vertexC);
+			auto vertexE = CalculateInterpolationVertex(tAFB, vertexA, vertexB);
+			result.reserve(1);
+			result.push_back({vertexA, vertexF, vertexE});
 		}
-	} else if (vertexCount == 2) {
-		/*             *Point0
-		               | \
-            newPoint4  |  \   newPoint3
-            _________↘|_*_\↙____________________第二次剪裁(情况2)
-					   |    \
-			           |     \   Point1
-		    newPoint4  |      \↙
-		    _________↘|__*___/__________________第二次剪裁(情况3)
-		               |    / ↖newPoint3
-			___________|___/____________________第一次剪裁
-			       	 ↗|  /↖
-			newPoint1  | /   newPoint2
-					   |/
-					   *Point2
+	} else if (keepPointCount == 2) {
+		//这里的逻辑和上面相似不再重复注释
+		/*
+					   * A
+					   |\
+					   | \
+					   |  \ B
+			___________|__/_______________
+					 ↗| /↖
+			        E  |/   F
+					   *C
+		*/
+		float tAEC = CalculatePlaneInterpolationCoefficient(nearPlane, A, C);
+		float tBFC = CalculatePlaneInterpolationCoefficient(nearPlane, B, C);
+		Point4 E = A * (1.0f - tAEC) + C * (tAEC);
+		Point4 F = B * (1.0f - tBFC) + C * (tBFC);
+		PointTriangle testTriangle{A, B, F};
+		if (!(BackCull(testTriangle) ^ reverse)) {
+			auto vertexF = CalculateInterpolationVertex(tAEC, vertexA, vertexC);
+			auto vertexE = CalculateInterpolationVertex(tBFC, vertexB, vertexC);
+			result.reserve(2);
+			result.push_back({vertexA, vertexB, vertexF});
+			result.push_back({vertexA, vertexF, vertexE});
+		}
+	} else if (keepPointCount == 3) {
+		PointTriangle testTriangle{A, B, C};
+		if (!(BackCull(testTriangle) ^ reverse)) {
+			result.reserve(1);
+			result.push_back({vertexA, vertexB, vertexC});
+		}
+	} else {
+		//keepPointCount == 0 不需要绘制
+	}
+	return result;
+}
 
-		*/
-		Point4 newPoint1 = CalculatePlanePoint(nearPlane, {point0, point2});
-		Point4 newPoint2 = CalculatePlanePoint(nearPlane, {point1, point2});
-		/*
-			远平面有三个位置可选 
-			1.point0 上面 不需要继续剪裁(包含了Point0 point1平行 且刚好在平面上的情况)
-			2.point1 上面
-			3.point1 下面
-			注意point0 和 newPoint2 中间 有一根线 我想尽办法也画不出来了 用*号表示需要得到的点 newPoint5
-		*/
-		bool upPoint0 = point0.GetVector4().Dot(farPlane) >= 0.0f;
-		bool upPoint1 = point1.GetVector4().Dot(farPlane) > 0.0f;
-		if (upPoint0) {
-			Point2 screenPoint0 = point0.ToPoint2();
-			Point2 screenPoint1 = point1.ToPoint2();
-			Point2 newScreenPoint1 = newPoint1.ToPoint2();
-			Point2 newScreenPoint2 = newPoint2.ToPoint2();
-			result.reserve(5);
-			result.push_back({screenPoint0, screenPoint1});
-			result.push_back({screenPoint1, newScreenPoint2});
-			result.push_back({newScreenPoint2, screenPoint0});
-			result.push_back({newScreenPoint2, newScreenPoint1});
-			result.push_back({newScreenPoint1, screenPoint0});
-		} else if(upPoint1) {
-			Point4 newPoint3 = CalculatePlanePoint(nearPlane, {point0, point1});
-			Point4 newPoint4 = CalculatePlanePoint(nearPlane, {point0, newPoint1});
-			Point4 newPoint5 = CalculatePlanePoint(nearPlane, {point0, newPoint2});
-			Point2 screenPoint1 = point1.ToPoint2();
-			Point2 newScreenPoint1 = newPoint1.ToPoint2();
-			Point2 newScreenPoint2 = newPoint2.ToPoint2();
-			Point2 newScreenPoint3 = newPoint3.ToPoint2();
-			Point2 newScreenPoint4 = newPoint4.ToPoint2();
-			Point2 newScreenPoint5 = newPoint5.ToPoint2();
-			result.reserve(7);
-			result.push_back({newScreenPoint5,newScreenPoint3});
-			result.push_back({newScreenPoint3, screenPoint1});
-			result.push_back({screenPoint1, newScreenPoint2});
-			result.push_back({newScreenPoint2, newScreenPoint5});
-			result.push_back({newScreenPoint2, newScreenPoint1});
-			result.push_back({newScreenPoint1, newScreenPoint4});
-			result.push_back({newScreenPoint4, newScreenPoint5});
-		} else {
-			Point4 newPoint3 = CalculatePlanePoint(nearPlane, {point1, newPoint2});
-			Point4 newPoint4 = CalculatePlanePoint(nearPlane, {point0, newPoint1});
-			Point4 newPoint5 = CalculatePlanePoint(nearPlane, {point0, newPoint2});
-			Point2 newScreenPoint1 = newPoint1.ToPoint2();
-			Point2 newScreenPoint2 = newPoint2.ToPoint2();
-			Point2 newScreenPoint3 = newPoint3.ToPoint2();
-			Point2 newScreenPoint4 = newPoint4.ToPoint2();
-			Point2 newScreenPoint5 = newPoint5.ToPoint2();
-			result.reserve(6);
-			result.push_back({newScreenPoint5, newScreenPoint3});
-			result.push_back({newScreenPoint3, newScreenPoint2});
-			result.push_back({newScreenPoint2, newScreenPoint5});
-			result.push_back({newScreenPoint2, newScreenPoint1});
-			result.push_back({newScreenPoint1, newScreenPoint4});
-			result.push_back({newScreenPoint4, newScreenPoint5});
+void Rasterizer::TriangleRasterization(const ScreenTriangle& points,
+									   const CalculateScreenPoint& useCoefficient) {
+	const int width = range.width;
+	const int height = range.height;
+	//获取三角形中顶点最大最小的x y值
+	//用于计算需要绘制的边框
+	array<float, 3> xValue;
+	array<float, 3> yValue;
+	for (int i = 0; i < 3; i++) {
+		xValue[i] = points[i].x;
+		yValue[i] = points[i].y;
+	}
+	std::sort(xValue.begin(), xValue.end(), std::less<float>());
+	std::sort(yValue.begin(), yValue.end(), std::less<float>());
+	//确定需要绘制的边界
+	int xMax = std::min(ScreenCoordinateToPixelPoint(xValue[2], width), width - 1);
+	int xMin = std::max(ScreenCoordinateToPixelPoint(xValue[0], width), 0);
+	int yMax = std::min(ScreenCoordinateToPixelPoint(yValue[2], height), height - 1);
+	int yMin = std::max(ScreenCoordinateToPixelPoint(yValue[0], height), 0);
+	Point2 A = points[0];
+	Point2 B = points[1];
+	Point2 C = points[2];
+	float fa = CalculateLineEquation(A, B, C);
+	float fb = CalculateLineEquation(B, C, A);
+	float fc = CalculateLineEquation(C, A, B);
+	//循环限定矩形 [xMin,xMax] * [yMin,yMax]
+	for (int yIndex = yMin; yIndex <= yMax; yIndex++) {
+		for (int xIndex = xMin; xIndex <= xMax; xIndex++) {
+			//每一个需要绘制的屏幕上的点 根据这个点计算重心
+			auto screenPoint = Point2{
+				ScreenCoordinateToPixelPoint(xIndex, width),
+				ScreenCoordinateToPixelPoint(yIndex, height)
+			};
+			float alpha = CalculateLineEquation(screenPoint, B, C) / fa;
+			float beta = CalculateLineEquation(screenPoint, C, A) / fb;
+			float gamma = CalculateLineEquation(screenPoint, A, B) / fc;
+			auto coefficients = GravityCoefficient{alpha, beta, gamma};
+			//判断是否在三角形内部
+			bool inTriangle = std::all_of(coefficients.begin(), coefficients.end(), [](float f) {
+				return f >= 0.0f;
+			});
+			if (inTriangle) {
+				useCoefficient({xIndex, yIndex}, coefficients);
+			}
 		}
-	} else if (vertexCount == 3) {
-		/*             *Point0
-			newPoint1  |\  newPoint2
-		  ___________↘|_\↙_________________ 情况2
-		               |  \
-			           |   \Point1
-			___________|  /_________________ 情况3
-			newPoint1↗| /↖newPoint2
-					   |/
-					   *Point2
-		*/
+	}
+}
+
+vector<ScreenLine> Rasterizer::WireframeNearFarPlaneClipAndGetLines(const PointTriangle & points) const {
+	constexpr auto nearPlane = Vector4{0.0f, 0.0f, -1.0f, 0.0f};
+	constexpr auto farPlane = Vector4{0.0f, 0.0f, 1.0f, -1.0f};
+	vector<ScreenLine> result;
+	//先要判断是否三个点同时在近平面或者远平面
+	bool allInNearPlane = std::all_of(points.begin(), points.end(), [](const auto& vertex) {
+		return CalculatePlaneDistance(nearPlane, vertexs[i].first) == 0.0f;
+	});
+	bool allInFarPlane = std::all_of(points.begin(), points.end(), [](const auto& vertex) {
+		return CalculatePlaneDistance(farPlane, vertexs[i].first) == 0.0f;
+	});
+	if (allInNearPlane || allInFarPlane) {
+		result.reserve(3);
+		Point2 screen0 = ConvertToScreenPoint(points[0]);
+		Point2 screen1 = ConvertToScreenPoint(points[1]);
+		Point2 screen2 = ConvertToScreenPoint(points[2]);
+		result.push_back({screen0, screen1});
+		result.push_back({screen1, screen2});
+		result.push_back({screen2, screen0});
+		return result;
+	}
+	array<pair<Point4, float>, 3> pointDistances;
+	for (int i = 0; i < 3; i++) {
+		pointDistances[i].first = points[i];
+		pointDistances[i].second = CalculatePlaneDistance(nearPlane, points[i]);
+	}
+	//这里不需要背面剔除 直接排序
+	std::sort(pointDistances.begin(), pointDistances.end(), [](auto pointDistancesA, auto pointDistancesB) {
+		return pointDistancesA.second < pointDistancesB.second;
+	});
+	auto keepPointCount = std::count_if(pointDistances.begin(), pointDistances.end(), [](const auto& data) {
+		return data.second <= 0.0f;
+	});
+	Point4 A = pointDistances[0].first;
+	Point4 B = pointDistances[1].first;
+	Point4 C = pointDistances[2].first;
+	if (keepPointCount == 1) {
 		/*
-			远平面有四个位置可选 
-			1.point0 上面(包含了Point0 point1平行 且刚好在平面上的情况)
-			2.point1 上面
-			3.point2 上面
-			4.point2 下面(包含了Point2 point1平行 且刚好在平面上的情况)
+		 _________________________________远平面(不需要剪裁)
+					   *A
+					   |\   H
+		  _____________|_\↙______________远平面(需要剪裁)
+					G↗|  \   F
+		 ______________|___\↙______________近平面
+					E↗|    \
+					   |    /↖B
+					   |   /
+					   |  /
+					   | /
+					   |/
+					   *C
 		*/
-		bool upPoint0 = point0.GetVector4().Dot(farPlane) >= 0.0f;
-		bool upPoint1 = point1.GetVector4().Dot(farPlane) > 0.0f;
-		bool upPoint2 = point2.GetVector4().Dot(farPlane) > 0.0f;
-		if (upPoint0) {
-			Point2 screenPoint0 = point0.ToPoint2();
-			Point2 screenPoint1 = point1.ToPoint2();
-			Point2 screenPoint2 = point2.ToPoint2();
-			result.reserve(3);
-			result.push_back({screenPoint0, screenPoint1});
-			result.push_back({screenPoint1, screenPoint2});
-			result.push_back({screenPoint2, screenPoint0});
-		} else if (upPoint1) {
-			Point4 newPoint1 = CalculatePlanePoint(nearPlane, {point0, point2});
-			Point4 newPoint2 = CalculatePlanePoint(nearPlane, {point0, point1});
-			Point2 screenPoint1 = point1.ToPoint2();
-			Point2 screenPoint2 = point2.ToPoint2();
-			Point2 newScreenPoint1 = newPoint1.ToPoint2();
-			Point2 newScreenPoint2 = newPoint2.ToPoint2();
+		Point4 E = CalculatePlanePoint(nearPlane, A, C);
+		Point4 F = CalculatePlanePoint(nearPlane, A, B);
+		bool needClip = CalculatePlaneDistance(farPlane, A) <= 0.0f;
+		if (needClip) {
+			Point4 G = CalculatePlanePoint(farPlane, A, C);
+			Point4 H = CalculatePlanePoint(farPlane, A, B);
+			Point2 screenG = ConvertToScreenPoint(G);
+			Point2 screenH = ConvertToScreenPoint(H);
+			Point2 screenF = ConvertToScreenPoint(F);
+			Point2 screenE = ConvertToScreenPoint(E);
 			result.reserve(4);
-			result.push_back({newScreenPoint1, newScreenPoint2});
-			result.push_back({newScreenPoint2, screenPoint1});
-			result.push_back({screenPoint1, screenPoint2});
-			result.push_back({screenPoint2, newScreenPoint1});
-		} else if (upPoint2) {
-			Point4 newPoint1 = CalculatePlanePoint(nearPlane, {point0, point2});
-			Point4 newPoint2 = CalculatePlanePoint(nearPlane, {point1, point2});
-			Point2 screenPoint2 = point2.ToPoint2();
-			Point2 newScreenPoint1 = newPoint1.ToPoint2();
-			Point2 newScreenPoint2 = newPoint2.ToPoint2();
-			result.reserve(3);
-			result.push_back({newScreenPoint1, newScreenPoint2});
-			result.push_back({newScreenPoint2, screenPoint2});
-			result.push_back({screenPoint2, newScreenPoint1});
+			result.push_back({screenG, screenH});
+			result.push_back({screenH, screenF});
+			result.push_back({screenF, screenE});
+			result.push_back({screenE, screenG});
 		} else {
-			Point2 screenPoint0 = point0.ToPoint2();
-			Point2 screenPoint1 = point1.ToPoint2();
-			Point2 screenPoint2 = point2.ToPoint2();
+			Point2 screenA = ConvertToScreenPoint(A);
+			Point2 screenE = ConvertToScreenPoint(E);
+			Point2 screenF = ConvertToScreenPoint(F);
 			result.reserve(3);
-			result.push_back({screenPoint0, screenPoint1});
-			result.push_back({screenPoint1, screenPoint2});
-			result.push_back({screenPoint2, screenPoint0});
+			result.push_back({screenA, screenF});
+			result.push_back({screenF, screenE});
+			result.push_back({screenE, screenA});
+		}
+	} else if (keepPointCount == 2) {
+		/*
+			____________________________________远平面(情况1) (包含AB刚好同时在平面的情况)
+
+		               *A
+		               |\
+                    G  | \   H
+            _________↘|__\↙___________________远平面(情况2)
+					   | ↑ \
+			           | I  \   B
+		            G  |  I  \↙
+		    _________↘|__↓__/__________________远平面(情况3)
+		               |    / ↖H
+			___________|___/_____________________近平面
+			       	 ↗|  /↖
+			        E  | /   F
+					   |/
+					   *C
+			近平面剪裁后会出现两个三角形 需要绘制三角形共同的边
+			直线AF上图我画不出来 与远平面交于I
+		*/
+		Point4 E = CalculatePlanePoint(nearPlane, A, C);
+		Point4 F = CalculatePlanePoint(nearPlane, B, C);
+		bool case1 = CalculatePlaneDistance(farPlane, A) <= 0.0f;
+		bool case2 = CalculatePlaneDistance(farPlane, B) < 0.0f;
+		if (case1) {
+			Point2 screenA = ConvertToScreenPoint(A);
+			Point2 screenB = ConvertToScreenPoint(B);
+			Point2 screenF = ConvertToScreenPoint(F);
+			Point2 screenE = ConvertToScreenPoint(E);
+			result.reserve(5);
+			result.push_back({screenA, screenB});
+			result.push_back({screenB, screenF});
+			result.push_back({screenF, screenA});
+			result.push_back({screenF, screenE});
+			result.push_back({screenE, screenA});
+		} else if(case2) {
+			Point4 G = CalculatePlanePoint(farPlane, A, C);
+			Point4 H = CalculatePlanePoint(farPlane, A, B);
+			Point2 screenG = ConvertToScreenPoint(G);
+			Point2 screenH = ConvertToScreenPoint(H);
+			Point2 screenB = ConvertToScreenPoint(B);
+			Point2 screenF = ConvertToScreenPoint(F);
+			Point2 screenE = ConvertToScreenPoint(E);
+			result.reserve(7);
+			result.push_back({screenG, screenH});
+			result.push_back({screenH, screenB});
+			result.push_back({screenB, screenF});
+			result.push_back({screenF, screenE});
+			result.push_back({screenE, screenG});
+			Point4 I = CalculatePlanePoint(farPlane, A, F);
+			Point2 screenI = ConvertToScreenPoint(I);
+			result.push_back({screenI, screenF});
+		} else {
+			Point4 G = CalculatePlanePoint(farPlane, A, C);
+			Point4 H = CalculatePlanePoint(farPlane, B, C);
+			Point2 screenG = ConvertToScreenPoint(G);
+			Point2 screenH = ConvertToScreenPoint(H);
+			Point2 screenF = ConvertToScreenPoint(F);
+			Point2 screenE = ConvertToScreenPoint(E);
+			result.reserve(5);
+			result.push_back({screenG, screenH});
+			result.push_back({screenH, screenF});
+			result.push_back({screenF, screenE});
+			result.push_back({screenE, screenG});
+			Point4 I = CalculatePlanePoint(farPlane, A, F);
+			Point2 screenI = ConvertToScreenPoint(I);
+			result.push_back({screenI, screenF});
+		}
+	} else if (keepPointCount == 3) {
+
+		/* 
+		    ________________________________ 远平面(情况1) (包含 A B同时在平面的情况)
+		               *A
+			        E  |\   F
+		    _________↘|_\↙_________________ 远平面(情况2)
+		               |  \
+			           |   \B
+			___________|  /_________________ 远平面(情况3)
+			         ↗| /↖
+					E  |/  F
+					   *C
+            ________________________________ 远平面(情况4) (包含 B C同时在平面的情况)
+
+			________________________________ 近平面
+		*/
+		bool case1 = CalculatePlaneDistance(farPlane, A) <= 0.0f;
+		bool case2 = CalculatePlaneDistance(farPlane, B) < 0.0f;
+		bool case3 = CalculatePlaneDistance(farPlane, C) < 0.0f;
+		if (case1) {
+			Point2 screenA = ConvertToScreenPoint(A);
+			Point2 screenB = ConvertToScreenPoint(B);
+			Point2 screenC = ConvertToScreenPoint(C);
+			result.reserve(3);
+			result.push_back({screenA, screenB});
+			result.push_back({screenB, screenC});
+			result.push_back({screenC, screenA});
+		} else if(case2) {
+			Point4 E = CalculatePlanePoint(farPlane, A, C);
+			Point4 F = CalculatePlanePoint(farPlane, A, B);
+			Point2 screenE = ConvertToScreenPoint(E);
+			Point2 screenF = ConvertToScreenPoint(F);
+			Point2 screenB = ConvertToScreenPoint(B);
+			Point2 screenC = ConvertToScreenPoint(C);
+			result.reserve(4);
+			result.push_back({screenE, screenF});
+			result.push_back({screenF, screenB});
+			result.push_back({screenB, screenC});
+			result.push_back({screenC, screenE});
+		} else if(case3) {
+			Point4 E = CalculatePlanePoint(farPlane, A, C);
+			Point4 F = CalculatePlanePoint(farPlane, B, C);
+			Point2 screenE = ConvertToScreenPoint(E);
+			Point2 screenF = ConvertToScreenPoint(F);
+			Point2 screenC = ConvertToScreenPoint(C);
+			result.reserve(3);
+			result.push_back({screenE, screenF});
+			result.push_back({screenF, screenC});
+			result.push_back({screenC, screenE});
+		} else {
+			//不绘制
 		}
 	} else {
 		//pointCount == 0 不需要绘制
@@ -585,7 +563,7 @@ vector<array<Point2, 2>> Rasterizer::WireframeNearFarPlaneClipAndGetLines(const 
 	return result;
 }
 
-bool Rasterizer::LineClip(array<Point2, 2> & points) {
+bool Rasterizer::LineClip(ScreenLine& points) const {
 	//边界
 	constexpr float xMin = -1.0f;
 	constexpr float xMax = 1.0f;
@@ -653,12 +631,10 @@ bool Rasterizer::LineClip(array<Point2, 2> & points) {
 		return false;
 	}
 
-	//浮点数问题需要限定到 [-1,1]
-	float newX0 = std::clamp(x0 + t0 * deltaX, xMin, xMax);
-	float newY0 = std::clamp(y0 + t0 * deltaY, yMin, yMax);
-	float newX1 = std::clamp(x0 + t1 * deltaX, xMin, xMax);
-	float newY1 = std::clamp(y0 + t1 * deltaY, yMin, yMax);
-
+	float newX0 = x0 + t0 * deltaX;
+	float newY0 = y0 + t0 * deltaY;
+	float newX1 = x0 + t1 * deltaX;
+	float newY1 = y0 + t1 * deltaY;
 
 	points[0] = {newX0, newY0};
 	points[1] = {newX1, newY1};
@@ -666,8 +642,10 @@ bool Rasterizer::LineClip(array<Point2, 2> & points) {
 }
 
 void Rasterizer::DrawLine(const array<Point2, 2> & points) {
-	assertion(XYInScreen(points[0].x, points[0].y));
-	assertion(XYInScreen(points[1].x, points[1].y));
+	Point2 A = points[0];
+	Point2 B = points[1];
+	size_t width = range.width;
+	size_t height = range.height;
 	/*
 		这里乘以图片比例主要是因为图片比例会导致k > 1 或者 k < -1的情况
 		中点算法一次只能上升或者下降一格像素 当K > 1时 只能取K == 1 (K<-1 同理)
@@ -679,10 +657,8 @@ void Rasterizer::DrawLine(const array<Point2, 2> & points) {
 		k < -1 || k >= 1 的情况 可以看作 y = x 轴对称
 		所以只需要反转顶点和图像来绘制即可
 	*/
-	Point2 A = points[0];
-	Point2 B = points[1];
-	int drawWidth = width;
-	int drawHeight = height;
+	size_t drawWidth = width;
+	size_t drawHeight = height;
 	bool reverse;
 	if (k >= -1.0f && k < 1.0f) {
 		reverse = false;
@@ -707,10 +683,12 @@ void Rasterizer::DrawLine(const array<Point2, 2> & points) {
 		可以省很多情况 增加代码可读性
 		而且两种情况画出的线条最多差距1像素
 	*/
-	int xMin = XScreenToPixel(A.x, drawWidth);
-	int xMax = XScreenToPixel(B.x, drawWidth);
-	Point2 pointA{XPixelToScreen(xMin, drawWidth), YPixelToScreen(YScreenToPixel(A.y, drawHeight), drawHeight)};
-	Point2 pointB{XPixelToScreen(xMax, drawWidth), YPixelToScreen(YScreenToPixel(B.y, drawHeight), drawHeight)};
+	size_t xMin = ScreenCoordinateToPixelPoint(A.x, drawWidth);
+	size_t xMax = ScreenCoordinateToPixelPoint(B.x, drawWidth);
+	size_t yMin = ScreenCoordinateToPixelPoint(A.y, drawHeight);
+	size_t yMax = ScreenCoordinateToPixelPoint(B.y, drawHeight);
+	Point2 pointA{ScreenCoordinateToPixelPoint(xMin, drawWidth), ScreenCoordinateToPixelPoint(yMin, drawHeight)};
+	Point2 pointB{ScreenCoordinateToPixelPoint(xMax, drawWidth), ScreenCoordinateToPixelPoint(yMax, drawHeight)};
 
 	/*
 		使用新K值来画线
@@ -718,42 +696,35 @@ void Rasterizer::DrawLine(const array<Point2, 2> & points) {
 	*/
 	const float newk = (pointB.y - pointA.y) / (pointB.x - pointA.x);
 	const float addtion = newk >= 0.0f ? 1.0f : -1.0f;
-	const float pixelHeight = 2.0f / static_cast<float>(drawHeight);
-	const float halfPixelHeight = 0.5f * pixelHeight;
+	/*
+	    一个像素在屏幕的高度 
+	*/
+	const float screenPixelHeight = 2.0f / static_cast<float>(drawHeight - 1);
+	const float halfScreenPixelHeight = 0.5f * screenPixelHeight;
 
-	float middleY = pointA.y + addtion * halfPixelHeight;
+	float middleY = pointA.y + addtion * halfScreenPixelHeight;
 
-	for (int pixelX = xMin; pixelX <= xMax; pixelX++) {
-		float x = XPixelToScreen(pixelX, drawWidth);
-		Point2 middlePoint = Point2{x, middleY};
+	for (size_t pixelX = xMin; pixelX <= xMax; pixelX++) {
+		float x = ScreenCoordinateToPixelPoint(pixelX, drawWidth);
+		auto middlePoint = Point2{x, middleY};
 		//取[0,1)作为例子 表示在直线是否在上方
 		bool pointUpLine = (addtion * CalculateLineEquation(middlePoint, pointA, pointB)) >= 0.0f;
 		float y;
 		if (pointUpLine) {
-			y = middleY - addtion * halfPixelHeight;
+			y = middleY - addtion * halfScreenPixelHeight;
 		} else {
-			y = middleY + addtion * halfPixelHeight;
+			y = middleY + addtion * halfScreenPixelHeight;
 		}
-		int pixelY = YScreenToPixel(y, drawHeight);
+		size_t pixelY = ScreenCoordinateToPixelPoint(y, drawHeight);
 		//这里也需要反转绘制
 		if (reverse) {
-			DrawWritePixel(pixelY, pixelX);
+			DrawWritePixel({pixelY, pixelX});
 		} else {
-			DrawWritePixel(pixelX, pixelY);
+			DrawWritePixel({pixelX, pixelY});
 		}
 		//取[0,1)作为例子 中点在直线下方 需要提高中点一个单位
 		if (!pointUpLine) {
-			middleY += addtion * pixelHeight;
+			middleY += addtion * screenPixelHeight;
 		}
 	}
-}
-
-void Rasterizer::DrawWritePixel(int x, int y) {
-	assertion(XYInPixel(x, y));
-	//绘制直线所在的深度
-	//保证其他像素写入的时候不会覆盖掉直线
-	constexpr float lineDepth = -1.0f;
-	const Color write = {1.0f, 1.0f, 1.0f};
-	int index = ReversePixelToIndex(x, y);
-	zBuffer[index] = {lineDepth, write};
 }

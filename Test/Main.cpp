@@ -4,10 +4,9 @@
 
 int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance,
 					_In_ LPWSTR lpCmdLine, _In_ int nShowCmd) {
-	constexpr int width = 800;
-	constexpr int height = 600;
-	Application application(width, height);
-	Rasterizer rasterizer(width, height);
+	auto range = PixelPointRange{800, 600};
+	Application application(range);
+	Rasterizer rasterizer(range);
 	using Texture = int;
 	vector<Point3> vertexs{{-1.0f, 1.0f, 0.0f}, {1.0f, 1.0f, 0.0f}, {0.0f, -1.0f, 0.0f}};
 	vector<Point2> coordinates{{}};

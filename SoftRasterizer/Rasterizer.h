@@ -15,43 +15,43 @@ using std::get;
 
 //默认的时候全部都是0
 struct IndexData {
-	array<int, 3> vertex{0, 0, 0};
-	array<int, 3> coordinate{0, 0, 0};
-	array<int, 3> normal{0, 0, 0};
-	array<int, 3> color{0, 0, 0};
-	int texture = 0;
+	array<size_t, 3> vertex{0, 0, 0};
+	array<size_t, 3> coordinate{0, 0, 0};
+	array<size_t, 3> normal{0, 0, 0};
+	array<size_t, 3> color{0, 0, 0};
+	size_t texture = 0;
 };
 
 
 class Rasterizer {
 public:
-	Rasterizer(int width, int height);
+	Rasterizer(PixelPointRange range);
 	void Clear();
 	RGBImage GenerateRGBImage() const;
-	/*
-		vertexs      顶点数组
-		coodinates   纹理坐标数组
-		normals      法线数组
-		colors       颜色数组
-		textures     纹理数组
-		indexs       索引数组
 
-		vertexShader 顶点着色器
+	/*
 		返回值 Point4 经过转化后的顶点坐标
 		参数 Point3  传入的顶点
 		参数 Point2  传入的纹理坐标
 		参数 Vector3 传入的法线
 		参数 Color   传入的颜色
 		参数 const Texture& 对应绑定的纹理
+	*/
+	template<typename Texture>
+	using VertexShader = function<Point4(Point3, Point2, Vector3, Color, const Texture&)>;
 
-		pixelShader 像素着色器
+	/*
 		返回值 Color 经过计算后像素上的颜色(在这里做gamma矫正)
 		参数 Point4  像素位置对应的坐标(可以通过逆矩阵返回相机空间)
 		参数 Point2  经过插值计算的纹理坐标(双线性滤波在这里实现)
 		参数 Vector3 经过插值计算的法线
 		参数 Color   经过插值计算的颜色
 		参数 const Texture& 对应绑定的纹理
+	*/
+	template<typename Texture>
+	using PixelShader = function<Color(Point4, Point2, Vector3, Color, const Texture&)>;
 
+	/*
 		若不使用的元素也需要传入一个长度为1的vector
 		index中填写为0
 	*/
@@ -62,13 +62,15 @@ public:
 					  const vector<Color>& colors,
 					  const vector<Texture>& textures,
 					  const vector<IndexData>& indexs,
-					  const function<Point4(Point3, Point2, Vector3, Color, const Texture&)>& vertexShader,
-					  const function<Color(Point4, Point2, Vector3, Color, const Texture&)>& pixelShader);
+					  const VertexShader<Texture>& vertexShader,
+					  const PixelShader<Texture>& pixelShader);
 
 	/*
-		接口和DrawTriangle一样只需要修改函数名称
+		接口参数和DrawTriangle一样只需要修改函数名称
 		顶点着色器运行结果与DrawTriangle保持一致
 		像素着色器不会使用
+		绘制出来的点深度为-1 保证不会被覆盖
+		颜色必定是白色
 	*/
 	template<typename Texture>
 	void DrawWireframe(const vector<Point3>& vertexs,
@@ -77,135 +79,223 @@ public:
 					   const vector<Color>& colors,
 					   const vector<Texture>& textures,
 					   const vector<IndexData>& indexs,
-					   const function<Point4(Point3, Point2, Vector3, Color, const Texture&)>& vertexShader,
-					   const function<Color(Point4, Point2, Vector3, Color, const Texture&)>& pixelShader);
+					   const VertexShader<Texture>& vertexShader,
+					   const PixelShader<Texture>& pixelShader);
 private:
-	// 转化之存储内存索引
-	int PixelToIndex(int x, int y) const;
-	// 上下反转 然后转化之存储内存索引
-	int ReversePixelToIndex(int x, int y) const;
-	// x 从像素空间转化至屏幕空间 [0, width - 1] => [-1, 1]
-	float XPixelToScreen(int x, int widthPixelCount) const;
-	float XPixelToScreen(int x) const;
-	// y 从像素空间转化至屏幕空间 [0, height - 1] => [-1, 1]
-	float YPixelToScreen(int y, int heightPixelCount) const;
-	float YPixelToScreen(int y) const;
-	// x 从屏幕空间转化至像素空间 [-1, 1] => [0, width - 1]
-	int XScreenToPixel(float x, int widthPixelCount) const;
-	int XScreenToPixel(float x) const;
-	// y 从屏幕空间转化至像素空间 [-1, 1] => [0, height - 1]
-	int YScreenToPixel(float y, int heightPixelCount) const;
-	int YScreenToPixel(float y) const;
-	//判断 x 在[0, width - 1]中  y 在[0, height - 1]中
-	bool XYInPixel(int x, int y) const;
-	//判断 x 在[-1, 1]中 y 在[-1, 1]中
-	bool XYInScreen(float x, float y) const;
-	//判断 z 在 [0,1]中
-	bool ZInViewVolumn(float z) const;
-
-
-	//剪裁近平面 因为顶点顺序问题 需要同时进行背面剪裁
-	vector<array<pair<Point4, tuple<Point2, Vector3, Color>>, 3>> TriangleNearPlaneClipAndBackCull(
-		const array<pair<Point4, tuple<Point2, Vector3, Color>>, 3> & triangleData);
 	/*
-		通过平面两侧的点计算 在平面的交点
-	    近平面 N = (0, 0, -1, 0);
-		远平面 N = (0, 0, 1, -1);
+		使用pair array tuple 导致代码难读
+		这里使用using来消除
+		.cpp文件内需要复制一份
 	*/
-	Point4 CalculatePlanePoint(Vector4 N, const array<Point4, 2> & points);
-	//背面消除
-	bool BackCull(const array<Point2, 3> & vertexs);
-	/*
-		三角形光栅化 
-		会生成像素坐标 和 重心系数
-		调用function来使用 这样写主要是为了增强主体函数可读性
-	*/
-	void TriangleRasterization(const array<Point2, 3> & points,
-							   const function<void(int, int, const array<float, 3>&)>& useCoefficient);
-	//通过带入顶点计算三角形重心
-	float CalculateLineEquation(Point2 p, Point2 p0, Point2 p1);
-	//通过屏幕的重心坐标计算插值 需要进行插值矫正
-	pair<Point4, tuple<Point2, Vector3, Color>> CaculateCoefficientData(
-		const array<pair<Point4, tuple<Point2, Vector3, Color>>, 3> & triangleData,
-		const array<float, 3> & coefficients);
-	//颜色写入ZBuffer
-	void DrawZBuffer(int x, int y, float z, Color color);
+	using VertexData = tuple<Point2, Vector3, Color>;
+	using Vertex = pair<Point4, VertexData>;
+	using VertexTriangle = array<Vertex, 3>;
+	using PointTriangle = array<Point4, 3>;
+	using GravityCoefficient = array<float, 3>;
+	using ScreenTriangle = array<Point2, 3>;
+	using ScreenLine = array<Point2, 2>;
 
 	/*
-		近平面剪裁 顶点结果与非线框模式保持一致
-		远平面剪裁 剪裁后得到远平面上直线
-		直线不重复
+		分别对应两种模式的绘制
 	*/
-	vector<array<Point2, 2>>WireframeNearFarPlaneClipAndGetLines(const array<Point4, 3> & points);
+	void DrawZBuffer(ScreenPixelPoint point, float depth, Color color);
+	void DrawWritePixel(ScreenPixelPoint point);
+
+
+	/*
+		将齐次顶点转化成屏幕上的点
+		point(x/w, y/w)
+	*/
+	Point2 ConvertToScreenPoint(Point4 p) const;
+
+	/*
+		p0 p1 为超平面两侧的点
+		返回平面上的线性插值系数t
+		满足式子 p = (1 - t) * p0 + t * p1;
+
+		向量plane(A,B,C,D)代表平面
+		表达式  Ax + By + Cz + Dw = 0
+
+		左平面  -x           + lw = 0     plane(-1,  0,  0, -1)
+		右平面   x           - rw = 0     plane( 1,  0,  0, -1)
+		下平面       -y      + bw = 0     plane( 0, -1,  0, -1)
+		上平面        y      - tw = 0     plane( 0,  1,  0, -1)
+		近平面            -z + nw = 0     plane( 0,  0, -1,  0)
+		远平面             z - fw = 0     plane( 0,  0,  1, -1)
+	*/
+	float CalculatePlaneInterpolationCoefficient(Vector4 plane, Point4 p0, Point4 p1) const;
+
+
+	/*
+		世界空间直接用线性插值计算
+		计算所有的数据的到新顶点
+		满足 p = (1 - t) * p0 + t * p1;
+	*/
+	Vertex CalculateInterpolationVertex(float t, const Vertex& p0, const Vertex& p1) const;
+
+	/*
+		通过两个点直接计算出平面上的点
+		p0 和 p1 需要在平面两侧
+	*/
+	Point4 CalculatePlanePoint(Vector4 plane, Point4 p0, Point4 p1) const;
+
+	/*
+		带入上面6个平面的向量
+		计算顶点到平面上的距离
+		这里的距离仅仅判断在平面的哪个方位
+		distance > 0   point在剪裁空间外
+		distance = 0   point在超平面上
+		distance < 0   point在剪裁空间方向
+	*/
+	float CalculatePlaneDistance(Vector4 plane, Point4 point) const;
+
+	/*
+		根据梯度方向返回在直线上方还是下方
+		带入直线方程式得到的数值
+		p0 p1 为直线端点
+		p为需要判断的顶点
+	*/
+	float CalculateLineEquation(Point2 p, Point2 p0, Point2 p1) const;
+
+	/*
+		所有顶点都在剪裁空间外面的三角形将直接被剔除
+		返回true则代表消除
+	*/
+	bool ViewVolumnCull(const PointTriangle& points) const;
+
+	/*
+		逆时针消除 根据传入顶点的顺序
+		返回true则代表消除
+	*/
+	bool BackCull(const PointTriangle& points) const;
+
+	/*
+		使用重心系数计算顶点
+		这里直接使用线性来计算
+	*/
+	Point4 CalculatePointByCoefficient(const GravityCoefficient& coefficients,
+									   const PointTriangle& points) const;
+
+	/*
+		使用重心系数计算顶点数据
+		这里使用纹理矫正的方法计算
+		需要使用对应三角形的w坐标
+	*/
+	VertexData CalculateVertexData(const GravityCoefficient& coefficients,
+								   const VertexTriangle& vertexs) const;
+
+	/*
+		步骤如下
+		1 近平面剪裁,得到顶点和插值系数
+		2 背面消除
+		3 计算线性插值
+		4 加入容器返回
+	*/
+	vector<VertexTriangle> TriangleNearPlaneClipAndBackCull(const VertexTriangle& vertexs) const;
+
+
+	using CalculateScreenPoint = function<void(ScreenPixelPoint, const GravityCoefficient&)>;
+	/*
+		三角形光栅化步骤如下
+		1 计算各像素位置
+		2 根据位置生成 重心系数
+		3 若该位置在三角形内调用function
+	*/
+	void TriangleRasterization(const ScreenTriangle& points,
+							   const CalculateScreenPoint& useCoefficient);
+
+	/*
+		步骤如下
+		1 近平面剪裁得到新顶点
+		2 远平面剪裁得到新顶点
+		3 获得直线,近平面剪裁需要分解成三角形的边,远平面剪裁只需要得到远平面的那条直线
+		4 放入容器返回
+	*/
+	vector<ScreenLine> WireframeNearFarPlaneClipAndGetLines(const PointTriangle& points) const;
 
 	/*
 		Liang-Barsky直线段裁剪
-		获得线段在[-1,1] * [-1,1]中
-		返回false 则线完全在屏幕外面 不需要绘制该直线
+		保证端点在[-1, 1] * [-1, 1]
 	*/
-	bool LineClip(array<Point2, 2> & line);
-	//mid-Point算法画直线
-	void DrawLine(const array<Point2, 2> & line);
-	//线框模式下绘制白色顶点 会覆盖在ZBuffer最前面 无法被其他元素覆盖
-	void DrawWritePixel(int x, int y);
+	bool LineClip(ScreenLine& points) const;
+
+	/*
+		middle-Point算法画直线
+	*/
+	void DrawLine(const ScreenLine& points);
 private:
-	int width;
-	int height;
+	PixelPointRange range;
 	vector<pair<float, Color>> zBuffer;
 };
 
 template<typename Texture>
-inline void Rasterizer::DrawTriangle(const vector<Point3>& vertexs, 
-									 const vector<Point2>& coordinates, 
-									 const vector<Vector3>& normals, 
-									 const vector<Color>& colors, 
-									 const vector<Texture>& textures, 
-									 const vector<IndexData>& indexs, 
-									 const function<Point4(Point3, Point2, Vector3, Color, const Texture&)>& vertexShader, 
-									 const function<Color(Point4, Point2, Vector3, Color, const Texture&)>& pixelShader) {
+inline void Rasterizer::DrawTriangle(const vector<Point3>& vertexs,
+									 const vector<Point2>& coordinates,
+									 const vector<Vector3>& normals,
+									 const vector<Color>& colors,
+									 const vector<Texture>& textures,
+									 const vector<IndexData>& indexs,
+									 const VertexShader<Texture>& vertexShader,
+									 const PixelShader<Texture>& pixelShader) {
 	for (const auto& index : indexs) {
-		assertion(std::all_of(index.vertex.begin(), index.vertex.end(), [&](int i) {
-			return i >= 0 && i < vertexs.size();
+		assertion(std::all_of(index.vertex.begin(), index.vertex.end(), [&](size_t i) {
+			return i < vertexs.size();
 		}));
-		assertion(std::all_of(index.coordinate.begin(), index.coordinate.end(), [&](int i) {
-			return i >= 0 && i < coordinates.size();
+		assertion(std::all_of(index.coordinate.begin(), index.coordinate.end(), [&](size_t i) {
+			return i < coordinates.size();
 		}));
-		assertion(std::all_of(index.normal.begin(), index.normal.end(), [&](int i) {
-			return i >= 0 && i < normals.size();
+		assertion(std::all_of(index.normal.begin(), index.normal.end(), [&](size_t i) {
+			return i < normals.size();
 		}));
-		assertion(std::all_of(index.color.begin(), index.color.end(), [&](int i) {
-			return i >= 0 && i < colors.size();
+		assertion(std::all_of(index.color.begin(), index.color.end(), [&](size_t i) {
+			return i < colors.size();
 		}));
-		assertion(index.texture >= 0 && index.texture < textures.size());
-		array<Point4, 3> mainVertexs;
+		assertion(index.texture < textures.size());
+		const Texture& texture = textures[index.texture];
+		PointTriangle trianglePoints;
 		for (int i = 0; i < 3; i++) {
-			mainVertexs[i] = vertexShader(
+			trianglePoints[i] = vertexShader(
 				vertexs[index.vertex[i]],
 				coordinates[index.coordinate[i]],
 				normals[index.normal[i]],
 				colors[index.color[i]],
-				textures[index.texture]
+				texture
 			);
 		}
-		array<pair<Point4, tuple<Point2, Vector3, Color>>, 3> triangle;
-		for (int i = 0; i < 3; i++) {
-			triangle[i] = {
-				mainVertexs[i], {coordinates[index.coordinate[i]], normals[index.normal[i]], colors[index.color[i]]}
-			};
+		if (ViewVolumnCull(trianglePoints)) {
+			continue;
 		}
-		auto clipTriangles = TriangleNearPlaneClipAndBackCull(triangle);
-		for (const auto& clipTriangle : clipTriangles) {
-			array<Point2, 3> screenTriangle;
+		VertexTriangle triangleVertexs;
+		for (int i = 0; i < 3; i++) {
+			triangleVertexs[i].first = trianglePoints[i];
+			auto vertexData = VertexData{
+				coordinates[index.coordinate[i]],
+				normals[index.normal[i]],
+				colors[index.color[i]]
+			};
+			triangleVertexs[i].second = vertexData;
+		}
+		auto clipTriangleVertexs = TriangleNearPlaneClipAndBackCull(triangleVertexs);
+		for (const auto& clipTriangleVertex : clipTriangleVertexs) {
+			ScreenTriangle screenTrianglePoints;
 			for (int i = 0; i < 3; i++) {
-				screenTriangle[i] = clipTriangle[i].first.ToPoint2();
+				screenTrianglePoints[i] = ConvertToScreenPoint(clipTriangleVertex[i].first);
 			}
-			TriangleRasterization(screenTriangle, [&](int x, int y, const array<float, 3> & coefficient) {
-				auto data = CaculateCoefficientData(clipTriangle, coefficient);
-				float depth = data.first.z / data.first.w;
-				if (ZInViewVolumn(depth)) {
-					Color color = pixelShader(data.first, get<0>(data.second), get<1>(data.second),
-											  get<2>(data.second), textures[index.texture]);
-					DrawZBuffer(x, y, depth, color);
+			TriangleRasterization(screenTrianglePoints,
+								  [&](ScreenPixelPoint screenPoint, const GravityCoefficient& coefficient) {
+				array<Point4, 3> clipTrianglePoints;
+				for (int i = 0; i < 3; i++) {
+					clipTrianglePoints[i] = clipTriangleVertex[i].first;
+				}
+				auto point = CalculatePointByCoefficient(coefficient, clipTrianglePoints);
+				float depth = point.z / point.w;
+				if (DepthInViewVolumn(depth)) {
+					auto triangleData = CalculateVertexData(coefficient, clipTriangleVertex);
+					auto coordinate = get<0>(triangleData);
+					auto normal = get<1>(triangleData);
+					auto color = get<2>(triangleData);
+					auto pixelColor = pixelShader(point, coordinate, normal, color, texture);
+					DrawZBuffer(screenPoint, depth, pixelColor);
 				}
 			});
 		}
@@ -213,31 +303,31 @@ inline void Rasterizer::DrawTriangle(const vector<Point3>& vertexs,
 }
 
 template<typename Texture>
-inline void Rasterizer::DrawWireframe(const vector<Point3>& vertexs, 
-									  const vector<Point2>& coordinates, 
-									  const vector<Vector3>& normals, 
-									  const vector<Color>& colors, 
-									  const vector<Texture>& textures, 
-									  const vector<IndexData>& indexs, 
-									  const function<Point4(Point3, Point2, Vector3, Color, const Texture&)>& vertexShader, 
-									  const function<Color(Point4, Point2, Vector3, Color, const Texture&)>& pixelShader) {
+inline void Rasterizer::DrawWireframe(const vector<Point3>& vertexs,
+									  const vector<Point2>& coordinates,
+									  const vector<Vector3>& normals,
+									  const vector<Color>& colors,
+									  const vector<Texture>& textures,
+									  const vector<IndexData>& indexs,
+									  const VertexShader<Texture>& vertexShader,
+									  const PixelShader<Texture>& pixelShader) {
 	for (const auto& index : indexs) {
-		assertion(std::all_of(index.vertex.begin(), index.vertex.end(), [&](int i) {
-			return i >= 0 && i < static_cast<int>(vertexs.size());
+		assertion(std::all_of(index.vertex.begin(), index.vertex.end(), [&](size_t i) {
+			return i < vertexs.size();
 		}));
-		assertion(std::all_of(index.coordinate.begin(), index.coordinate.end(), [&](int i) {
-			return i >= 0 && i < static_cast<int>(coordinates.size());
+		assertion(std::all_of(index.coordinate.begin(), index.coordinate.end(), [&](size_t i) {
+			return i < coordinates.size();
 		}));
-		assertion(std::all_of(index.normal.begin(), index.normal.end(), [&](int i) {
-			return i >= 0 && i < static_cast<int>(normals.size());
+		assertion(std::all_of(index.normal.begin(), index.normal.end(), [&](size_t i) {
+			return i < normals.size();
 		}));
-		assertion(std::all_of(index.color.begin(), index.color.end(), [&](int i) {
-			return i >= 0 && i < static_cast<int>(colors.size());
+		assertion(std::all_of(index.color.begin(), index.color.end(), [&](size_t i) {
+			return i < colors.size();
 		}));
-		assertion(index.texture >= 0 && index.texture < static_cast<int>(textures.size()));
-		array<Point4, 3> mainPoints;
+		assertion(index.texture < textures.size());
+		array<Point4, 3> trianglePoints;
 		for (int i = 0; i < 3; i++) {
-			mainPoints[i] = vertexShader(
+			trianglePoints[i] = vertexShader(
 				vertexs[index.vertex[i]],
 				coordinates[index.coordinate[i]],
 				normals[index.normal[i]],
@@ -245,7 +335,10 @@ inline void Rasterizer::DrawWireframe(const vector<Point3>& vertexs,
 				textures[index.texture]
 			);
 		}
-		auto lines = WireframeNearFarPlaneClipAndGetLines(mainPoints);
+		if (ViewVolumnCull(trianglePoints)) {
+			continue;
+		}
+		auto lines = WireframeNearFarPlaneClipAndGetLines(trianglePoints);
 		for (auto line : lines) {
 			if (LineClip(line)) {
 				DrawLine(line);

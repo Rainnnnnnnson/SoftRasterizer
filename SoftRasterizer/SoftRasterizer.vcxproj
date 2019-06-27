@@ -127,6 +127,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Agreement.cpp" />
     <ClCompile Include="Application.cpp" />
     <ClCompile Include="Assertion.cpp" />
     <ClCompile Include="Main.cpp" />
@@ -135,6 +136,7 @@
     <ClCompile Include="RGBImage.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Agreement.h" />
     <ClInclude Include="Application.h" />
     <ClInclude Include="Assertion.h" />
     <ClInclude Include="Math.h" />

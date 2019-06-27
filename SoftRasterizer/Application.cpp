@@ -2,12 +2,15 @@
 #include "Assertion.h"
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
-Application::Application(int width, int height) : buffer(width,height) {
+Application::Application(PixelPointRange range) : buffer(range) {
+	int width = static_cast<int>(range.width);
+	int height = static_cast<int>(range.height);
 	//用这个来获取句柄
 	hInstance = GetModuleHandle(NULL);
 
-	// Register the window class.
 	const wchar_t CLASS_NAME[] = L"Sample Window Class";
+
+	//注册窗体样式
 	WNDCLASS wc = {};
 	wc.lpfnWndProc = WindowProc;
 	wc.hInstance = hInstance;
@@ -18,7 +21,7 @@ Application::Application(int width, int height) : buffer(width,height) {
 	//不允许最大化 不允许拉伸窗口 保证刚好是bitMap的大小
 	DWORD dwstyle = WS_OVERLAPPEDWINDOW ^ WS_THICKFRAME ^ WS_MAXIMIZEBOX;
 
-	RECT r{0, 0, width, height};
+	RECT r{0, 0, range.width, height};
 	AdjustWindowRectEx(&r, dwstyle, 0, 0);
 	int w = r.right - r.left;
 	int h = r.bottom - r.top;
@@ -49,22 +52,22 @@ Application::~Application() {
 RGBImage Application::GetImage(const wchar_t* fileName) const {
 	auto bitMap = Gdiplus::Bitmap::FromFile(fileName);
 	assertion(bitMap != nullptr);
-	int width = bitMap->GetWidth();
-	int height = bitMap->GetHeight();
-	RGBImage image(width, height);
-	for (int line = 0; line < height; line++) {
-		for (int column = 0; column < width; column++) {
+	size_t width = static_cast<size_t>(bitMap->GetWidth());
+	size_t height = static_cast<size_t>(bitMap->GetHeight());
+	RGBImage image({width, height});
+	for (size_t y = 0; y < height; y++) {
+		for (size_t x = 0; x < width; x++) {
 			Gdiplus::Color color;
-			bitMap->GetPixel(line, column, &color);
-			image.SetPixel(line, column, RGBColor{color.GetR(), color.GetG(), color.GetB()});
+			bitMap->GetPixel(x, y, &color);
+			image.SetImagePixel({x, y}, RGBColor{color.GetR(), color.GetG(), color.GetB()});
 		}
 	}
 	return image;
 }
 
 bool Application::Continue() {
-	int width = buffer.GetWidth();
-	int height = buffer.GetHeight();
+	size_t width = buffer.GetWidth();
+	size_t height = buffer.GetHeight();
 	Gdiplus::Graphics graphics(hwnd);
 	Gdiplus::Bitmap bitmap(width, height, PixelFormat24bppRGB);
 	Gdiplus::Rect rect(0, 0, width, height);
@@ -78,12 +81,13 @@ bool Application::Continue() {
 			Gdiplus::BitmapData bitmapData;
 			BeginPaint(hwnd, &ps);
 			bitmap.LockBits(&rect, 0, PixelFormat24bppRGB, &bitmapData);
-			for (int y = 0; y < height; y++) {
-				for (int x = 0; x < width; x++) {
-					RGBColor rgb = buffer.GetPixel(x, y);
+			for (size_t y = 0; y < height; y++) {
+				for (size_t x = 0; x < width; x++) {
+					RGBColor rgb = buffer.GetImagePixel({x, y});
 					auto p = reinterpret_cast<unsigned char*>(bitmapData.Scan0);
 					int index = y * width + x;
 					int pixelIndex = index * 3;
+					//bitmap 内存是反过来的 BGR排序的
 					p[pixelIndex + 0] = rgb.b;
 					p[pixelIndex + 1] = rgb.g;
 					p[pixelIndex + 2] = rgb.r;

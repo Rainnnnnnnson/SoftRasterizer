@@ -1,7 +1,9 @@
 #pragma once
 #include<vector>
+#include"Agreement.h"
 using std::vector;
-#include"Math.h"
+using std::pair;
+
 class RGBColor {
 public:
 	RGBColor(unsigned char r, unsigned char g, unsigned char b);
@@ -13,27 +15,21 @@ public:
 
 class RGBImage {
 public:
-	RGBImage(int width, int height);
-	int GetWidth() const;
-	int GetHeight() const;
+	RGBImage(PixelPointRange range);
+	size_t GetWidth() const;
+	size_t GetHeight() const;
 
-	//index = index = y * width + x
-	RGBColor GetPixel(int x, int y) const;
-	void SetPixel(int x, int y, RGBColor rgb);
+	RGBColor GetImagePixel(ImagePixelPoint point) const;
+	void SetImagePixel(ImagePixelPoint point, RGBColor rgb);
+	RGBColor GetScreenPixel(ScreenPixelPoint point) const;
+	void SetScreenPixel(ScreenPixelPoint point, RGBColor rgb);
 
-	//上下翻转主要用于纹理 index = index = (height - 1 - y) * width + x
-	RGBColor ReverseGetPixel(int x, int y) const;
-	void ReverseSetPixel(int x, int y, RGBColor rgb);
-
-	//纹理坐标使用ReverseGetPixel 取值[0,1] 超过取边界
-	Color BilinearFilter(Point2 p) const;
+	/*
+		双线性滤波
+		纹理坐标[0,1] * [0,1] 超出取边界
+	*/
+	Color BilinearFilter(ImageCoordinate coordinate) const;
 private:
-	bool XYInPixel(int x, int y) const;
-	int PixelToIndex(int x, int y) const;
-	int ReversePixelToIndex(int x, int y) const;
-private:
-	int width;
-	int height;
-	//图片存储顺序 index = y * width + x
+	PixelPointRange range;
 	vector<RGBColor> rgbs;
 };
