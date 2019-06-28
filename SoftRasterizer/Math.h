@@ -33,6 +33,8 @@ struct Matrix3X3;
 struct Matrix4X4;
 struct Color;
 
+constexpr float PI = 3.14159265359f;
+
 struct Point2 {
 	float x, y;
 	Point2 operator*(float f) const;
@@ -141,12 +143,19 @@ struct Color {
 	Color operator*(Color c) const;
 };
 
+/*
+	需要传入单位向量
+*/
 Matrix4X4 CameraLookTo(Point3 eye, Vector3 direction, Vector3 up);
 Matrix4X4 CameraLookAt(Point3 eye, Point3 target, Vector3 up);
 Matrix4X4 Scale(float x, float y, float z);
 Matrix4X4 Move(Vector3 direction);
 Matrix4X4 Perspective(float n, float f, float l, float r, float b, float t);
 Matrix4X4 PerspectiveByAspect(float n, float f, float aspect);
+
+/*
+	朝着轴的方向看去 顺时针转动rad弧度
+*/
 Matrix4X4 RotateX(float radian);
 Matrix4X4 RotateY(float radian);
 Matrix4X4 RotateZ(float radian);

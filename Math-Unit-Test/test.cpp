@@ -372,3 +372,145 @@ TEST(Color, ColorMultiplyColor) {
 	EXPECT_EQ(c.g, 4.0f);
 	EXPECT_EQ(c.b, 3.0f);
 }
+
+TEST(CameraLookTo, Test) {
+	Point4 point4 = CameraLookTo({0.0f, 0.0f, 1.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}) * Point4 {
+		1.0f, 2.0f, 2.0f, 1.0f
+	};
+	EXPECT_EQ(point4.x, -1.0f);
+	EXPECT_EQ(point4.y, 2.0f);
+	EXPECT_EQ(point4.z, 1.0f);
+	EXPECT_EQ(point4.w, 1.0f);
+}
+
+TEST(CameraLookAt, Test) {
+	Point4 point4 = CameraLookAt({0.0f, 0.0f, 1.0f}, {1.0f, 0.0f, 1.0f}, {0.0f, 1.0f, 0.0f}) * Point4 {
+		1.0f, 1.0f, 1.0f, 1.0f
+	};
+	EXPECT_EQ(point4.x, 0.0f);
+	EXPECT_EQ(point4.y, 1.0f);
+	EXPECT_EQ(point4.z, 1.0f);
+	EXPECT_EQ(point4.w, 1.0f);
+}
+
+TEST(Scale, Test) {
+	Point4 point4 = Scale(2.0f, 3.0f, 4.0f) * Point4 {
+		1.0f, 1.0f, 1.0f, 1.0f
+	};
+	EXPECT_EQ(point4.x, 2.0f);
+	EXPECT_EQ(point4.y, 3.0f);
+	EXPECT_EQ(point4.z, 4.0f);
+	EXPECT_EQ(point4.w, 1.0f);
+}
+
+TEST(Move, Test) {
+	Point4 point4 = Move({2.0f, 3.0f, 4.0f}) * Point4 {
+		1.0f, 1.0f, 1.0f, 1.0f
+	};
+	EXPECT_EQ(point4.x, 3.0f);
+	EXPECT_EQ(point4.y, 4.0f);
+	EXPECT_EQ(point4.z, 5.0f);
+	EXPECT_EQ(point4.w, 1.0f);
+}
+
+TEST(Perspective, Test) {
+	auto matrix = Perspective(1.0f, 2.0f, -1.0f, 1.0f, -1.0f, 1.0f);
+	auto p0 = (matrix * Point4{-1.0f, -1.0f, 1.0f, 1.0f}).ToPoint3();
+	EXPECT_EQ(p0.x, -1.0f);
+	EXPECT_EQ(p0.y, -1.0f);
+	EXPECT_EQ(p0.z, 0.0f);
+	auto p1 = (matrix * Point4{-1.0f, 1.0f, 1.0f, 1.0f}).ToPoint3();
+	EXPECT_EQ(p1.x, -1.0f);
+	EXPECT_EQ(p1.y, 1.0f);
+	EXPECT_EQ(p1.z, 0.0f);
+	auto p2 = (matrix * Point4{1.0f, 1.0f, 1.0f, 1.0f}).ToPoint3();
+	EXPECT_EQ(p2.x, 1.0f);
+	EXPECT_EQ(p2.y, 1.0f);
+	EXPECT_EQ(p2.z, 0.0f);
+	auto p3 = (matrix * Point4{1.0f, -1.0f, 1.0f, 1.0f}).ToPoint3();
+	EXPECT_EQ(p3.x, 1.0f);
+	EXPECT_EQ(p3.y, -1.0f);
+	EXPECT_EQ(p3.z, 0.0f);
+	auto p4 = (matrix * Point4{-2.0f, -2.0f, 2.0f, 1.0f}).ToPoint3();
+	EXPECT_EQ(p4.x, -1.0f);
+	EXPECT_EQ(p4.y, -1.0f);
+	EXPECT_EQ(p4.z, 1.0f);
+	auto p5 = (matrix * Point4{-2.0f, 2.0f, 2.0f, 1.0f}).ToPoint3();
+	EXPECT_EQ(p5.x, -1.0f);
+	EXPECT_EQ(p5.y, 1.0f);
+	EXPECT_EQ(p5.z, 1.0f);
+	auto p6 = (matrix * Point4{2.0f, 2.0f, 2.0f, 1.0f}).ToPoint3();
+	EXPECT_EQ(p6.x, 1.0f);
+	EXPECT_EQ(p6.y, 1.0f);
+	EXPECT_EQ(p6.z, 1.0f);
+	auto p7 = (matrix * Point4{2.0f, -2.0f, 2.0f, 1.0f}).ToPoint3();
+	EXPECT_EQ(p7.x, 1.0f);
+	EXPECT_EQ(p7.y, -1.0f);
+	EXPECT_EQ(p7.z, 1.0f);
+}
+
+TEST(PerspectiveByAspect, Test) {
+	auto matrix = PerspectiveByAspect(1.0f, 2.0f, 2.0f);
+	auto p0 = (matrix * Point4{-2.0f, -1.0f, 1.0f, 1.0f}).ToPoint3();
+	EXPECT_EQ(p0.x, -1.0f);
+	EXPECT_EQ(p0.y, -1.0f);
+	EXPECT_EQ(p0.z, 0.0f);
+	auto p1 = (matrix * Point4{-2.0f, 1.0f, 1.0f, 1.0f}).ToPoint3();
+	EXPECT_EQ(p1.x, -1.0f);
+	EXPECT_EQ(p1.y, 1.0f);
+	EXPECT_EQ(p1.z, 0.0f);
+	auto p2 = (matrix * Point4{2.0f, 1.0f, 1.0f, 1.0f}).ToPoint3();
+	EXPECT_EQ(p2.x, 1.0f);
+	EXPECT_EQ(p2.y, 1.0f);
+	EXPECT_EQ(p2.z, 0.0f);
+	auto p3 = (matrix * Point4{2.0f, -1.0f, 1.0f, 1.0f}).ToPoint3();
+	EXPECT_EQ(p3.x, 1.0f);
+	EXPECT_EQ(p3.y, -1.0f);
+	EXPECT_EQ(p3.z, 0.0f);
+	auto p4 = (matrix * Point4{-4.0f, -2.0f, 2.0f, 1.0f}).ToPoint3();
+	EXPECT_EQ(p4.x, -1.0f);
+	EXPECT_EQ(p4.y, -1.0f);
+	EXPECT_EQ(p4.z, 1.0f);
+	auto p5 = (matrix * Point4{-4.0f, 2.0f, 2.0f, 1.0f}).ToPoint3();
+	EXPECT_EQ(p5.x, -1.0f);
+	EXPECT_EQ(p5.y, 1.0f);
+	EXPECT_EQ(p5.z, 1.0f);
+	auto p6 = (matrix * Point4{4.0f, 2.0f, 2.0f, 1.0f}).ToPoint3();
+	EXPECT_EQ(p6.x, 1.0f);
+	EXPECT_EQ(p6.y, 1.0f);
+	EXPECT_EQ(p6.z, 1.0f);
+	auto p7 = (matrix * Point4{4.0f, -2.0f, 2.0f, 1.0f}).ToPoint3();
+	EXPECT_EQ(p7.x, 1.0f);
+	EXPECT_EQ(p7.y, -1.0f);
+	EXPECT_EQ(p7.z, 1.0f);
+}
+
+TEST(RotateX, Test) {
+	Point4 point4 = RotateX(PI / 2.0f) * Point4 {
+		3.0f, 4.0f, 5.0f, 1.0f
+	};
+	EXPECT_EQ(point4.x, 3.0f);
+	EXPECT_LE(abs(point4.y - (-5.0f)), 0.0001f);
+	EXPECT_LE(abs(point4.z - (4.0f)), 0.0001f);
+	EXPECT_EQ(point4.w, 1.0f);
+}
+
+TEST(RotateY, Test) {
+	Point4 point4 = RotateY(PI / 2.0f) * Point4 {
+		3.0f, 4.0f, 5.0f, 1.0f
+	};
+	EXPECT_LE(abs(point4.x - (5.0f)), 0.0001f);
+	EXPECT_EQ(point4.y, 4.0f);
+	EXPECT_LE(abs(point4.z - (-3.0f)), 0.0001f);
+	EXPECT_EQ(point4.w, 1.0f);
+}
+
+TEST(RotateZ, Test) {
+	Point4 point4 = RotateZ(PI / 2.0f) * Point4 {
+		3.0f, 4.0f, 5.0f, 1.0f
+	};
+	EXPECT_LE(abs(point4.x - (-4.0f)), 0.0001f);
+	EXPECT_LE(abs(point4.y - (3.0f)), 0.0001f);
+	EXPECT_EQ(point4.z, 5.0f);
+	EXPECT_EQ(point4.w, 1.0f);
+}
