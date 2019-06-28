@@ -94,7 +94,8 @@ float Vector2::Length() const {
 }
 
 Vector2 Vector2::Normalize() const {
-	return (*this) * (1.0f / Length());
+	float length = Length();
+	return {x / length, y / length};
 }
 
 Point2 Vector2::GetPoint2() const {
@@ -126,7 +127,8 @@ float Vector3::Length() const {
 }
 
 Vector3 Vector3::Normalize() const {
-	return (*this) * (1.0f / Length());
+	float length = Length();
+	return {x / length, y / length, z / length};
 }
 
 Point3 Vector3::GetPoint3() const {
@@ -287,22 +289,22 @@ Matrix4X4 Matrix4X4::Inverse() const {
 		f[3][0], f[3][1], f[3][2]
 	}.Determinant();
 
-	float a10 = +Matrix3X3{
+	float a10 = -Matrix3X3{
 		f[0][1], f[0][2], f[0][3],
 		f[2][1], f[2][2], f[2][3],
 		f[3][1], f[3][2], f[3][3]
 	}.Determinant();
-	float a11 = -Matrix3X3{
+	float a11 = +Matrix3X3{
 		f[0][0], f[0][2], f[0][3],
 		f[2][0], f[2][2], f[2][3],
 		f[3][0], f[3][2], f[3][3]
 	}.Determinant();
-	float a12 = +Matrix3X3{
+	float a12 = -Matrix3X3{
 		f[0][0], f[0][1], f[0][3],
 		f[2][0], f[2][1], f[2][3],
 		f[3][0], f[3][1], f[3][3]
 	}.Determinant();
-	float a13 = -Matrix3X3{
+	float a13 = +Matrix3X3{
 		f[0][0], f[0][1], f[0][2],
 		f[2][0], f[2][1], f[2][2],
 		f[3][0], f[3][1], f[3][2]
@@ -329,22 +331,22 @@ Matrix4X4 Matrix4X4::Inverse() const {
 		f[3][0], f[3][1], f[3][2]
 	}.Determinant();
 
-	float a30 = +Matrix3X3{
+	float a30 = -Matrix3X3{
 		f[0][1], f[0][2], f[0][3],
 		f[1][1], f[1][2], f[1][3],
 		f[2][1], f[2][2], f[2][3]
 	}.Determinant();
-	float a31 = -Matrix3X3{
+	float a31 = +Matrix3X3{
 		f[0][0], f[0][2], f[0][3],
 		f[1][0], f[1][2], f[1][3],
 		f[2][0], f[2][2], f[2][3]
 	}.Determinant();
-	float a32 = +Matrix3X3{
+	float a32 = -Matrix3X3{
 		f[0][0], f[0][1], f[0][3],
 		f[1][0], f[1][1], f[1][3],
 		f[2][0], f[2][1], f[2][3]
 	}.Determinant();
-	float a33 = -Matrix3X3{
+	float a33 = +Matrix3X3{
 		f[0][0], f[0][1], f[0][2],
 		f[1][0], f[1][1], f[1][2],
 		f[2][0], f[2][1], f[2][2]
