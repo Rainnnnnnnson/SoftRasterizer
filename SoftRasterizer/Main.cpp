@@ -3,7 +3,7 @@
 #include "Application.h"
 int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance,
 					_In_ LPWSTR lpCmdLine, _In_ int nShowCmd) {
-	auto range = PixelPointRange{800, 600};
+	auto range = PixelPointRange{512, 512};
 	Application application(range);
 	Rasterizer rasterizer(range);
 	RGBImage image = application.GetImage(L"../level0.PNG");
