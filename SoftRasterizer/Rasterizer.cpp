@@ -22,6 +22,8 @@ using ScreenLine = array<Point2, 2>;
 
 Rasterizer::Rasterizer(PixelPointRange range)
 	: range(range),zBuffer(range.GetSize(), {clearDepth, black}) {
+	assertion(range.width >= 2);
+	assertion(range.height >= 2);
 }
 
 void Rasterizer::Clear() {

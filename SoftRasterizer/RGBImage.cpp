@@ -34,7 +34,10 @@ Color RGBColor::ToColor() const {
 	};
 }
 
-RGBImage::RGBImage(PixelPointRange range) : range(range), rgbs(range.GetSize(), RGBColor{0, 0, 0}) {}
+RGBImage::RGBImage(PixelPointRange range) : range(range), rgbs(range.GetSize(), RGBColor{0, 0, 0}) {
+	assertion(range.width >= 2);
+	assertion(range.height >= 2);
+}
 
 size_t RGBImage::GetWidth() const {
 	return range.width;
@@ -64,34 +67,39 @@ void RGBImage::SetScreenPixel(ScreenPixelPoint point, RGBColor rgb) {
 	rgbs[ScreenPixelPointToIndex(point, range)] = rgb;
 }
 
+Color RGBImage::PointSample(ImageCoordinate coordinate) const {
+	assertion(ImageCoordinateInRangle(coordinate));
+	size_t x = static_cast<size_t>(ImageCoordinateToPixelPoint(coordinate.x, range.width));
+	size_t y = static_cast<size_t>(ImageCoordinateToPixelPoint(coordinate.y, range.height));
+	return GetImagePixel({x, y}).ToColor();
+}
+
 Color RGBImage::BilinearFilter(ImageCoordinate coordinate) const {
 	assertion(ImageCoordinateInRangle(coordinate));
 	int width = static_cast<int>(range.width);
 	int height = static_cast<int>(range.height);
-	float u = coordinate.x * static_cast<float>(width) - 0.5f;
-	float v = coordinate.y * static_cast<float>(height) - 0.5f;
-	//像素坐标
-	float u0 = floor(u);
+	float u0 = coordinate.x * static_cast<float>(width - 1);
+	float v0 = coordinate.y * static_cast<float>(height - 1);
 	float u1 = u0 + 1.0f;
-	float v0 = ceil(v);
-	float v1 = v0 - 1.0f;
+	float v1 = v0 + 1.0f;
+	float u = floor(u1);
+	float v = floor(v1);
 	//坐标系数
 	float uLeft = u - u0;
 	float uRight = u1 - u;
-	float vUp = v0 - v;
-	float vDown = v - v1;
-	//变成整数取数组
-	//超过边界取边界
-	size_t u0i = static_cast<size_t>(std::clamp(static_cast<int>(u0), 0, width - 1));
-	size_t u1i = static_cast<size_t>(std::clamp(static_cast<int>(u1), 0, width - 1));
-	size_t v0i = static_cast<size_t>(std::clamp(static_cast<int>(v0), 0, height - 1));
-	size_t v1i = static_cast<size_t>(std::clamp(static_cast<int>(v1), 0, height - 1));
+	float vUp = v - v0;
+	float vDown = v1 - v;
+	//变成整数取数组 只可能超上界
+	size_t u0i = static_cast<size_t>(std::min(static_cast<int>(u0), width - 1));
+	size_t u1i = static_cast<size_t>(std::min(static_cast<int>(u1), width - 1));
+	size_t v0i = static_cast<size_t>(std::min(static_cast<int>(v0), height - 1));
+	size_t v1i = static_cast<size_t>(std::min(static_cast<int>(u1), height - 1));
 	// A B
 	// C D
 	//四个像素
 	Color A = GetImagePixel({u0i, v0i}).ToColor() * uLeft * vUp;
 	Color B = GetImagePixel({u1i, v0i}).ToColor() * uRight * vUp;
-	Color C = GetImagePixel({u0i, v1i}).ToColor()* uLeft* vDown;
+	Color C = GetImagePixel({u0i, v1i}).ToColor() * uLeft * vDown;
 	Color D = GetImagePixel({u1i, v1i}).ToColor() * uRight * vDown;
 	return A + B + C + D;
 }

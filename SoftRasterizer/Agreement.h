@@ -4,17 +4,19 @@
 	统一使用此规定
 	增强代码可读性
 */
-#include<utility>
 #include"Math.h"
 
 struct PixelPoint {
 	size_t x, y;
 };
 
-struct PixelPointRange {
-	size_t width, height;
+class PixelPointRange {
+public:
+	PixelPointRange(size_t width, size_t height);
 	size_t GetSize() const;
 	float GetAspectRatio() const;
+public:
+	size_t width, height;
 };
 
 /*

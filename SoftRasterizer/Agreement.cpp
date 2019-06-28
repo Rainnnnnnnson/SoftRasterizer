@@ -1,5 +1,9 @@
 #include "Agreement.h"
 #include <cmath>
+
+PixelPointRange::PixelPointRange(size_t width, size_t height)
+	: width(width), height(height) {}
+
 size_t PixelPointRange::GetSize() const {
 	return width * height;
 }

@@ -8,6 +8,9 @@
       <AdditionalLibraryDirectories>$(SolutionDir)SoftRasterizer\$(IntDir)</AdditionalLibraryDirectories>
       <AdditionalDependencies>Agreement.obj;Assertion.obj;RGBImage.obj;Rasterizer.obj;Math.obj;Application.obj;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
+    <ClCompile>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+    </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup />
 </Project>

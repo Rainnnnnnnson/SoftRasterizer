@@ -2,7 +2,6 @@
 #include<vector>
 #include"Agreement.h"
 using std::vector;
-using std::pair;
 
 class RGBColor {
 public:
@@ -24,10 +23,7 @@ public:
 	RGBColor GetScreenPixel(ScreenPixelPoint point) const;
 	void SetScreenPixel(ScreenPixelPoint point, RGBColor rgb);
 
-	/*
-		双线性滤波
-		纹理坐标[0,1] * [0,1] 超出取边界
-	*/
+	Color PointSample(ImageCoordinate coordinate) const;
 	Color BilinearFilter(ImageCoordinate coordinate) const;
 private:
 	PixelPointRange range;

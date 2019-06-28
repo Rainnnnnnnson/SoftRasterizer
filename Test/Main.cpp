@@ -14,7 +14,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance,
 	vector<Color> colors{{}};
 	vector<Texture> textures{{}};
 	vector<IndexData> indexs{{{0, 1, 2}}};
-	auto vertexShader = [](Point3 point, Point2, Vector3, Color, const Texture&){
+	auto vertexShader = [](Point3 point, Point2&, Vector3&, Color&, const Texture&){
 		return point.ToPoint4();
 	};
 	auto pixelShader = [](Point4, Point2, Vector3, Color, const Texture&) {
