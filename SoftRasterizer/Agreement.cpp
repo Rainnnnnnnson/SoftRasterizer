@@ -31,7 +31,7 @@ float ImagePixelPointToCoordinate(size_t pixel, size_t pixelCount) {
 }
 
 int ImageCoordinateToPixelPoint(float coordinate, size_t pixelCount) {
-	return round(coordinate * static_cast<float>(pixelCount - 1));
+	return static_cast<int>(round(coordinate * static_cast<float>(pixelCount - 1)));
 }
 
 float ScreenPixelPointToCoordinate(size_t pixel, size_t pixelCount) {
@@ -42,7 +42,7 @@ float ScreenPixelPointToCoordinate(size_t pixel, size_t pixelCount) {
 
 int ScreenCoordinateToPixelPoint(float coordinate, size_t pixelCount) {
 	float normalizeCoordinate = (coordinate + 1.0f) * 0.5f;
-	return round(normalizeCoordinate * static_cast<float>(pixelCount - 1));
+	return static_cast<int>(round(normalizeCoordinate * static_cast<float>(pixelCount - 1)));
 }
 
 size_t ImagePixelPointToIndex(ImagePixelPoint point, PixelPointRange range) {

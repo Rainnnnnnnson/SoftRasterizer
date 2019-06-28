@@ -179,7 +179,25 @@ Matrix3X3 Matrix3X3::operator*(Matrix3X3 m) const {
 }
 
 Matrix3X3 Matrix3X3::Inverse() const {
-	return {};
+	float a00 = +(f[1][1] * f[2][2] - f[1][2] * f[2][1]);
+	float a01 = -(f[1][0] * f[2][2] - f[1][2] * f[2][0]);
+	float a02 = +(f[1][0] * f[2][1] - f[1][1] * f[2][0]);
+
+	float a10 = -(f[0][1] * f[2][2] - f[0][2] * f[2][1]);
+	float a11 = +(f[0][0] * f[2][2] - f[0][2] * f[2][0]);
+	float a12 = -(f[0][0] * f[2][1] - f[0][1] * f[2][0]);
+
+	float a20 = +(f[0][1] * f[1][2] - f[0][2] * f[1][1]);
+	float a21 = -(f[0][0] * f[1][2] - f[0][2] * f[1][0]);
+	float a22 = +(f[0][0] * f[1][1] - f[0][1] * f[1][0]);
+
+	float d = Determinant();
+
+	return {
+		a00 / d, a10 / d, a20 / d,
+		a01 / d, a11 / d, a21 / d,
+		a02 / d, a12 / d, a22 / d
+	};
 }
 
 Matrix3X3 Matrix3X3::Transpose() const {
@@ -219,7 +237,7 @@ Point4 Matrix4X4::operator*(Point4 p) const {
 	float y = f[1][0] * p.x + f[1][1] * p.y + f[1][2] * p.z + f[1][3] * p.w;
 	float z = f[2][0] * p.x + f[2][1] * p.y + f[2][2] * p.z + f[2][3] * p.w;
 	float w = f[3][0] * p.x + f[3][1] * p.y + f[3][2] * p.z + f[3][3] * p.w;
-	return Point4{x, y, z, w};
+	return {x, y, z, w};
 }
 
 Matrix4X4 Matrix4X4::operator*(Matrix4X4 m) const {
@@ -248,42 +266,98 @@ Matrix4X4 Matrix4X4::operator*(Matrix4X4 m) const {
 }
 
 Matrix4X4 Matrix4X4::Inverse() const {
-	Matrix4X4 matrix;
-	//求伴随矩阵
-	for (int line = 0; line < 4; line++) {
-		for (int column = 0; column < 4; column++) {
-			//子矩阵
-			Matrix3X3 matrix3X3;
-			float sign = ((line + column) % 2 == 0) ? 1.0f : -1.0f;
-			int sonLine = 0;
-			for (int parentsLine = 0; parentsLine < 4; parentsLine++) {
-				int sonColumn = 0;
-				if (parentsLine == line) {
-					continue;
-				}
-				for (int parentsColumn = 0; parentsColumn < 4; parentsColumn++) {
-					if (parentsColumn == column) {
-						continue;
-					}
-					matrix3X3.f[sonLine][sonColumn] = f[parentsLine][parentsColumn];
-					sonColumn++;
-				}
-				sonLine++;
-			}
-			float determinant = matrix3X3.Determinant();
-			matrix.f[column][line] = sign * determinant;
-		}
-	}
-	//求行列式
-	float matrixDeterminant = Determinant();
-	//伴随矩阵除以行列式
-	Matrix4X4 returnMatrix;
-	for (int j = 0; j < 4; j++) {
-		for (int i = 0; i < 4; i++) {
-			returnMatrix.f[j][i] = matrix.f[j][i] / matrixDeterminant;
-		}
-	}
-	return returnMatrix;
+	float a00 = +Matrix3X3{
+		f[1][1], f[1][2], f[1][3],
+		f[2][1], f[2][2], f[2][3],
+		f[3][1], f[3][2], f[3][3]
+	}.Determinant();
+	float a01 = -Matrix3X3{
+		f[1][0], f[1][2], f[1][3],
+		f[2][0], f[2][2], f[2][3],
+		f[3][0], f[3][2], f[3][3]
+	}.Determinant();
+	float a02 = +Matrix3X3{
+		f[1][0], f[1][1], f[1][3],
+		f[2][0], f[2][1], f[2][3],
+		f[3][0], f[3][1], f[3][3]
+	}.Determinant();
+	float a03 = -Matrix3X3{
+		f[1][0], f[1][1], f[1][2],
+		f[2][0], f[2][1], f[2][2],
+		f[3][0], f[3][1], f[3][2]
+	}.Determinant();
+
+	float a10 = +Matrix3X3{
+		f[0][1], f[0][2], f[0][3],
+		f[2][1], f[2][2], f[2][3],
+		f[3][1], f[3][2], f[3][3]
+	}.Determinant();
+	float a11 = -Matrix3X3{
+		f[0][0], f[0][2], f[0][3],
+		f[2][0], f[2][2], f[2][3],
+		f[3][0], f[3][2], f[3][3]
+	}.Determinant();
+	float a12 = +Matrix3X3{
+		f[0][0], f[0][1], f[0][3],
+		f[2][0], f[2][1], f[2][3],
+		f[3][0], f[3][1], f[3][3]
+	}.Determinant();
+	float a13 = -Matrix3X3{
+		f[0][0], f[0][1], f[0][2],
+		f[2][0], f[2][1], f[2][2],
+		f[3][0], f[3][1], f[3][2]
+	}.Determinant();
+
+	float a20 = +Matrix3X3{
+		f[0][1], f[0][2], f[0][3],
+		f[1][1], f[1][2], f[1][3],
+		f[3][1], f[3][2], f[3][3]
+	}.Determinant();
+	float a21 = -Matrix3X3{
+		f[0][0], f[0][2], f[0][3],
+		f[1][0], f[1][2], f[1][3],
+		f[3][0], f[3][2], f[3][3]
+	}.Determinant();
+	float a22 = +Matrix3X3{
+		f[0][0], f[0][1], f[0][3],
+		f[1][0], f[1][1], f[1][3],
+		f[3][0], f[3][1], f[3][3]
+	}.Determinant();
+	float a23 = -Matrix3X3{
+		f[0][0], f[0][1], f[0][2],
+		f[1][0], f[1][1], f[1][2],
+		f[3][0], f[3][1], f[3][2]
+	}.Determinant();
+
+	float a30 = +Matrix3X3{
+		f[0][1], f[0][2], f[0][3],
+		f[1][1], f[1][2], f[1][3],
+		f[2][1], f[2][2], f[2][3]
+	}.Determinant();
+	float a31 = -Matrix3X3{
+		f[0][0], f[0][2], f[0][3],
+		f[1][0], f[1][2], f[1][3],
+		f[2][0], f[2][2], f[2][3]
+	}.Determinant();
+	float a32 = +Matrix3X3{
+		f[0][0], f[0][1], f[0][3],
+		f[1][0], f[1][1], f[1][3],
+		f[2][0], f[2][1], f[2][3]
+	}.Determinant();
+	float a33 = -Matrix3X3{
+		f[0][0], f[0][1], f[0][2],
+		f[1][0], f[1][1], f[1][2],
+		f[2][0], f[2][1], f[2][2]
+	}.Determinant();
+
+	float d = Determinant();
+
+	return{
+		a00 / d, a10 / d, a20 / d, a30 / d,
+		a01 / d, a11 / d, a21 / d, a31 / d,
+		a02 / d, a12 / d, a22 / d, a32 / d,
+		a03 / d, a13 / d, a23 / d, a33 / d
+	};
 }
 
 Matrix4X4 Matrix4X4::Transpose() const {
@@ -296,7 +370,7 @@ Matrix4X4 Matrix4X4::Transpose() const {
 }
 
 float Matrix4X4::Determinant() const {
-	float a00 = f[0][0] * Matrix3X3{
+	float a00 = +f[0][0] * Matrix3X3{
 		f[1][1], f[1][2], f[1][3],
 		f[2][1], f[2][2], f[2][3],
 		f[3][1], f[3][2], f[3][3]
@@ -306,7 +380,7 @@ float Matrix4X4::Determinant() const {
 		f[2][0], f[2][2], f[2][3],
 		f[3][0], f[3][2], f[3][3]
 	}.Determinant();
-	float a02 = f[0][2] * Matrix3X3{
+	float a02 = +f[0][2] * Matrix3X3{
 		f[1][0], f[1][1], f[1][3],
 		f[2][0], f[2][1], f[2][3],
 		f[3][0], f[3][1], f[3][3]
@@ -328,11 +402,11 @@ Matrix3X3 Matrix4X4::ToMatrix3X3() const {
 }
 
 Color Color::operator*(float f) const {
-	return Color{r * f, g * f, b * f};
+	return {r * f, g * f, b * f};
 }
 
 Color Color::operator+(Color c) const {
-	return Color{r + c.r, g + c.g, b + c.b};
+	return {r + c.r, g + c.g, b + c.b};
 }
 
 Color Color::operator*(Color c) const {
@@ -340,7 +414,7 @@ Color Color::operator*(Color c) const {
 }
 
 Matrix4X4 CameraLookTo(Point3 eye, Vector3 direction, Vector3 up) {
-	Vector3 right = up.Cross(direction).Normalize();
+	auto right = up.Cross(direction).Normalize();
 	Matrix4X4 coordinate{
 		right.x, right.y, right.z, 0.0f,
 		up.x, up.y, up.z, 0.0f,
@@ -381,7 +455,7 @@ Matrix4X4 Move(Vector3 direction) {
 
 
 Matrix4X4 Perspective(float n, float f, float l, float r, float b, float t) {
-	return Matrix4X4{
+	return {
 		(2.0f * n) / (r - l), 0.0f, -(r + l) / (r - l), 0.0f,
 		0.0f, (2.0f * n) / (t - b), -(t + b) / (t - b), 0.0f,
 		0.0f, 0.0f, f / (f - n), -(n * f) / (f - n),

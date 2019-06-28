@@ -6,7 +6,7 @@
   <ItemDefinitionGroup>
     <Link>
       <AdditionalLibraryDirectories>$(SolutionDir)SoftRasterizer\$(IntDir)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>Assertion.obj;RGBImage.obj;Rasterizer.obj;Math.obj;Application.obj;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>Agreement.obj;Assertion.obj;RGBImage.obj;Rasterizer.obj;Math.obj;Application.obj;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup />

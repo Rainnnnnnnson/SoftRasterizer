@@ -1,13 +1,11 @@
 #pragma once
 #include<vector>
-#include<set>
 #include<array>
 #include<functional>
 #include"Assertion.h"
 #include"RGBImage.h"
 using std::function;
 using std::vector;
-using std::set;
 using std::array;
 using std::pair;
 using std::tuple;
@@ -30,20 +28,20 @@ public:
 	RGBImage GenerateRGBImage() const;
 
 	/*
-		返回值 Point4 经过转化后的顶点坐标
-		参数 Point3  传入的顶点
-		参数 Point2  传入的纹理坐标
-		参数 Vector3 传入的法线
-		参数 Color   传入的颜色
-		参数 const Texture& 对应绑定的纹理
+		返回值 Point4 转化后的顶点
+		参数 Point3   传入的顶点
+		参数 Point2&  传入的纹理坐标的备份 
+		参数 Vector3& 传入的法线的备份 
+		参数 Color&   传入的颜色的备份 (修改此颜色用于实现Gouraud Shading)
+		参数 const Texture& 对应绑定的纹理 (可以用于扰动 Point2& Vector3& Color& 计算插值时会使用)
 	*/
 	template<typename Texture>
-	using VertexShader = function<Point4(Point3, Point2, Vector3, Color, const Texture&)>;
+	using VertexShader = function<Point4(Point3, Point2&, Vector3&, Color&, const Texture&)>;
 
 	/*
-		返回值 Color 经过计算后像素上的颜色(在这里做gamma矫正)
-		参数 Point4  像素位置对应的坐标(可以通过逆矩阵返回相机空间)
-		参数 Point2  经过插值计算的纹理坐标(双线性滤波在这里实现)
+		返回值 Color 经过计算后像素上的颜色 (在这里做gamma矫正)
+		参数 Point4  像素位置对应的坐标 (可以通过逆矩阵返回相机空间)
+		参数 Point2  经过插值计算的纹理坐标 (双线性滤波在这里实现)
 		参数 Vector3 经过插值计算的法线
 		参数 Color   经过插值计算的颜色
 		参数 const Texture& 对应绑定的纹理
@@ -251,23 +249,11 @@ inline void Rasterizer::DrawTriangle(const vector<Point3>& vertexs,
 			return i < colors.size();
 		}));
 		assertion(index.texture < textures.size());
+
 		const Texture& texture = textures[index.texture];
-		PointTriangle trianglePoints;
-		for (int i = 0; i < 3; i++) {
-			trianglePoints[i] = vertexShader(
-				vertexs[index.vertex[i]],
-				coordinates[index.coordinate[i]],
-				normals[index.normal[i]],
-				colors[index.color[i]],
-				texture
-			);
-		}
-		if (ViewVolumnCull(trianglePoints)) {
-			continue;
-		}
+
 		VertexTriangle triangleVertexs;
 		for (int i = 0; i < 3; i++) {
-			triangleVertexs[i].first = trianglePoints[i];
 			auto vertexData = VertexData{
 				coordinates[index.coordinate[i]],
 				normals[index.normal[i]],
@@ -275,20 +261,44 @@ inline void Rasterizer::DrawTriangle(const vector<Point3>& vertexs,
 			};
 			triangleVertexs[i].second = vertexData;
 		}
+
+		PointTriangle trianglePoints;
+		for (int i = 0; i < 3; i++) {
+			trianglePoints[i] = vertexShader(
+				vertexs[index.vertex[i]],
+				get<0>(triangleVertexs[i].second),
+				get<1>(triangleVertexs[i].second),
+				get<2>(triangleVertexs[i].second),
+				texture
+			);
+		}
+
+		if (ViewVolumnCull(trianglePoints)) {
+			continue;
+		}
+
+		for (int i = 0; i < 3; i++) {
+			triangleVertexs[i].first = trianglePoints[i];
+		}
+
 		auto clipTriangleVertexs = TriangleNearPlaneClipAndBackCull(triangleVertexs);
 		for (const auto& clipTriangleVertex : clipTriangleVertexs) {
-			ScreenTriangle screenTrianglePoints;
+
+			ScreenTriangle screenPoints;
 			for (int i = 0; i < 3; i++) {
-				screenTrianglePoints[i] = ConvertToScreenPoint(clipTriangleVertex[i].first);
+				screenPoints[i] = ConvertToScreenPoint(clipTriangleVertex[i].first);
 			}
-			TriangleRasterization(screenTrianglePoints,
-								  [&](ScreenPixelPoint screenPoint, const GravityCoefficient& coefficient) {
+
+			TriangleRasterization(screenPoints, [&](ScreenPixelPoint screenPoint, const GravityCoefficient& coefficient) {
+
 				array<Point4, 3> clipTrianglePoints;
 				for (int i = 0; i < 3; i++) {
 					clipTrianglePoints[i] = clipTriangleVertex[i].first;
 				}
+
 				auto point = CalculatePointByCoefficient(coefficient, clipTrianglePoints);
 				float depth = point.z / point.w;
+
 				if (DepthInViewVolumn(depth)) {
 					auto triangleData = CalculateVertexData(coefficient, clipTriangleVertex);
 					auto coordinate = get<0>(triangleData);
@@ -325,19 +335,32 @@ inline void Rasterizer::DrawWireframe(const vector<Point3>& vertexs,
 			return i < colors.size();
 		}));
 		assertion(index.texture < textures.size());
-		array<Point4, 3> trianglePoints;
+
+		VertexTriangle triangleVertexs;
+		for (int i = 0; i < 3; i++) {
+			auto vertexData = VertexData{
+				coordinates[index.coordinate[i]],
+				normals[index.normal[i]],
+				colors[index.color[i]]
+			};
+			triangleVertexs[i].second = vertexData;
+		}
+
+		PointTriangle trianglePoints;
 		for (int i = 0; i < 3; i++) {
 			trianglePoints[i] = vertexShader(
 				vertexs[index.vertex[i]],
-				coordinates[index.coordinate[i]],
-				normals[index.normal[i]],
-				colors[index.color[i]],
+				get<0>(triangleVertexs[i].second),
+				get<1>(triangleVertexs[i].second),
+				get<2>(triangleVertexs[i].second),
 				textures[index.texture]
 			);
 		}
+
 		if (ViewVolumnCull(trianglePoints)) {
 			continue;
 		}
+
 		auto lines = WireframeNearFarPlaneClipAndGetLines(trianglePoints);
 		for (auto line : lines) {
 			if (LineClip(line)) {

@@ -114,22 +114,22 @@ bool Rasterizer::ViewVolumnCull(const PointTriangle& points) const {
 	constexpr auto top = Vector4{0.0f, 1.0f, 0.0f, -1.0f};
 	constexpr auto near = Vector4{0.0f, 0.0f, -1.0f, 0.0f};
 	constexpr auto far = Vector4{0.0f, 0.0f, 1.0f, 1.0f};
-	bool notOutLeft = std::all_of(points.begin(), points.end(), [](auto point) {
+	bool notOutLeft = std::all_of(points.begin(), points.end(), [&](auto point) {
 		return CalculatePlaneDistance(left, point) <= 0.0f;
 	});
-	bool notOutRight = std::all_of(points.begin(), points.end(), [](auto point) {
+	bool notOutRight = std::all_of(points.begin(), points.end(), [&](auto point) {
 		return CalculatePlaneDistance(right, point) <= 0.0f;
 	});
-	bool notOutBottom = std::all_of(points.begin(), points.end(), [](auto point) {
+	bool notOutBottom = std::all_of(points.begin(), points.end(), [&](auto point) {
 		return CalculatePlaneDistance(bottom, point) <= 0.0f;
 	});
-	bool notOutTop = std::all_of(points.begin(), points.end(), [](auto point) {
+	bool notOutTop = std::all_of(points.begin(), points.end(), [&](auto point) {
 		return CalculatePlaneDistance(top, point) <= 0.0f;
 	});
-	bool notOutNear = std::all_of(points.begin(), points.end(), [](auto point) {
+	bool notOutNear = std::all_of(points.begin(), points.end(), [&](auto point) {
 		return CalculatePlaneDistance(near, point) <= 0.0f;
 	});
-	bool notOutFar = std::all_of(points.begin(), points.end(), [](auto point) {
+	bool notOutFar = std::all_of(points.begin(), points.end(), [&](auto point) {
 		return CalculatePlaneDistance(far, point) <= 0.0f;
 	});
 	if (notOutLeft && notOutRight && notOutBottom && notOutTop && notOutNear && notOutFar) {
@@ -205,16 +205,6 @@ VertexData Rasterizer::CalculateVertexData(const GravityCoefficient& coefficient
 
 vector<VertexTriangle> Rasterizer::TriangleNearPlaneClipAndBackCull(const VertexTriangle& vertexs) const {
 	constexpr auto nearPlane = Vector4{0.0f, 0.0f, -1.0f, 0.0f};
-	vector<VertexTriangle> result;
-	//先要判断是否三个点同时在近平面内
-	bool allInNearPlane = std::all_of(vertexs.begin(), vertexs.end(), [](const auto& vertex) {
-		return CalculatePlaneDistance(nearPlane, vertexs[i].first) == 0.0f;
-	});
-	if (allInNearPlane) {
-		result.reserve(1);
-		result.push_back(vertexs);
-		return result;
-	}
 
 	array<pair<Vertex, float>, 3> vertexDistances;
 	for (int i = 0; i < 3; i++) {
@@ -253,6 +243,7 @@ vector<VertexTriangle> Rasterizer::TriangleNearPlaneClipAndBackCull(const Vertex
 	const Vertex& vertexA = vertexDistances[0].first;
 	const Vertex& vertexB = vertexDistances[1].first;
 	const Vertex& vertexC = vertexDistances[2].first;
+	vector<VertexTriangle> result;
 	if (keepPointCount == 1) {
 		/*
 					   *A
@@ -326,10 +317,10 @@ void Rasterizer::TriangleRasterization(const ScreenTriangle& points,
 	std::sort(xValue.begin(), xValue.end(), std::less<float>());
 	std::sort(yValue.begin(), yValue.end(), std::less<float>());
 	//确定需要绘制的边界
-	int xMax = std::min(ScreenCoordinateToPixelPoint(xValue[2], width), width - 1);
-	int xMin = std::max(ScreenCoordinateToPixelPoint(xValue[0], width), 0);
-	int yMax = std::min(ScreenCoordinateToPixelPoint(yValue[2], height), height - 1);
-	int yMin = std::max(ScreenCoordinateToPixelPoint(yValue[0], height), 0);
+	size_t xMax = std::min(ScreenCoordinateToPixelPoint(xValue[2], width), width - 1);
+	size_t xMin = std::max(ScreenCoordinateToPixelPoint(xValue[0], width), 0);
+	size_t yMax = std::min(ScreenCoordinateToPixelPoint(yValue[2], height), height - 1);
+	size_t yMin = std::max(ScreenCoordinateToPixelPoint(yValue[0], height), 0);
 	Point2 A = points[0];
 	Point2 B = points[1];
 	Point2 C = points[2];
@@ -337,12 +328,12 @@ void Rasterizer::TriangleRasterization(const ScreenTriangle& points,
 	float fb = CalculateLineEquation(B, C, A);
 	float fc = CalculateLineEquation(C, A, B);
 	//循环限定矩形 [xMin,xMax] * [yMin,yMax]
-	for (int yIndex = yMin; yIndex <= yMax; yIndex++) {
-		for (int xIndex = xMin; xIndex <= xMax; xIndex++) {
+	for (size_t yIndex = yMin; yIndex <= yMax; yIndex++) {
+		for (size_t xIndex = xMin; xIndex <= xMax; xIndex++) {
 			//每一个需要绘制的屏幕上的点 根据这个点计算重心
 			auto screenPoint = Point2{
-				ScreenCoordinateToPixelPoint(xIndex, width),
-				ScreenCoordinateToPixelPoint(yIndex, height)
+				ScreenPixelPointToCoordinate(xIndex, width),
+				ScreenPixelPointToCoordinate(yIndex, height)
 			};
 			float alpha = CalculateLineEquation(screenPoint, B, C) / fa;
 			float beta = CalculateLineEquation(screenPoint, C, A) / fb;
@@ -353,7 +344,8 @@ void Rasterizer::TriangleRasterization(const ScreenTriangle& points,
 				return f >= 0.0f;
 			});
 			if (inTriangle) {
-				useCoefficient({xIndex, yIndex}, coefficients);
+				ScreenPixelPoint point{xIndex, yIndex};
+				useCoefficient(point, coefficients);
 			}
 		}
 	}
@@ -362,24 +354,6 @@ void Rasterizer::TriangleRasterization(const ScreenTriangle& points,
 vector<ScreenLine> Rasterizer::WireframeNearFarPlaneClipAndGetLines(const PointTriangle & points) const {
 	constexpr auto nearPlane = Vector4{0.0f, 0.0f, -1.0f, 0.0f};
 	constexpr auto farPlane = Vector4{0.0f, 0.0f, 1.0f, -1.0f};
-	vector<ScreenLine> result;
-	//先要判断是否三个点同时在近平面或者远平面
-	bool allInNearPlane = std::all_of(points.begin(), points.end(), [](const auto& vertex) {
-		return CalculatePlaneDistance(nearPlane, vertexs[i].first) == 0.0f;
-	});
-	bool allInFarPlane = std::all_of(points.begin(), points.end(), [](const auto& vertex) {
-		return CalculatePlaneDistance(farPlane, vertexs[i].first) == 0.0f;
-	});
-	if (allInNearPlane || allInFarPlane) {
-		result.reserve(3);
-		Point2 screen0 = ConvertToScreenPoint(points[0]);
-		Point2 screen1 = ConvertToScreenPoint(points[1]);
-		Point2 screen2 = ConvertToScreenPoint(points[2]);
-		result.push_back({screen0, screen1});
-		result.push_back({screen1, screen2});
-		result.push_back({screen2, screen0});
-		return result;
-	}
 	array<pair<Point4, float>, 3> pointDistances;
 	for (int i = 0; i < 3; i++) {
 		pointDistances[i].first = points[i];
@@ -395,6 +369,7 @@ vector<ScreenLine> Rasterizer::WireframeNearFarPlaneClipAndGetLines(const PointT
 	Point4 A = pointDistances[0].first;
 	Point4 B = pointDistances[1].first;
 	Point4 C = pointDistances[2].first;
+	vector<ScreenLine> result;
 	if (keepPointCount == 1) {
 		/*
 		 _________________________________远平面(不需要剪裁)
@@ -507,7 +482,7 @@ vector<ScreenLine> Rasterizer::WireframeNearFarPlaneClipAndGetLines(const PointT
 	} else if (keepPointCount == 3) {
 
 		/* 
-		    ________________________________ 远平面(情况1) (包含 A B同时在平面的情况)
+		    ________________________________ 远平面(情况1) (包含 AB 在平面上 和 ABC 在平面上的情况)
 		               *A
 			        E  |\   F
 		    _________↘|_\↙_________________ 远平面(情况2)
@@ -517,7 +492,7 @@ vector<ScreenLine> Rasterizer::WireframeNearFarPlaneClipAndGetLines(const PointT
 			         ↗| /↖
 					E  |/  F
 					   *C
-            ________________________________ 远平面(情况4) (包含 B C同时在平面的情况)
+            ________________________________ 远平面(情况4) (包含 BC 在平面上的情况)
 
 			________________________________ 近平面
 		*/
@@ -641,7 +616,7 @@ bool Rasterizer::LineClip(ScreenLine& points) const {
 	return true;
 }
 
-void Rasterizer::DrawLine(const array<Point2, 2> & points) {
+void Rasterizer::DrawLine(const ScreenLine& points) {
 	Point2 A = points[0];
 	Point2 B = points[1];
 	size_t width = range.width;
@@ -687,8 +662,8 @@ void Rasterizer::DrawLine(const array<Point2, 2> & points) {
 	size_t xMax = ScreenCoordinateToPixelPoint(B.x, drawWidth);
 	size_t yMin = ScreenCoordinateToPixelPoint(A.y, drawHeight);
 	size_t yMax = ScreenCoordinateToPixelPoint(B.y, drawHeight);
-	Point2 pointA{ScreenCoordinateToPixelPoint(xMin, drawWidth), ScreenCoordinateToPixelPoint(yMin, drawHeight)};
-	Point2 pointB{ScreenCoordinateToPixelPoint(xMax, drawWidth), ScreenCoordinateToPixelPoint(yMax, drawHeight)};
+	Point2 pointA{ScreenPixelPointToCoordinate(xMin, drawWidth), ScreenPixelPointToCoordinate(yMin, drawHeight)};
+	Point2 pointB{ScreenPixelPointToCoordinate(xMax, drawWidth), ScreenPixelPointToCoordinate(yMax, drawHeight)};
 
 	/*
 		使用新K值来画线
@@ -705,11 +680,12 @@ void Rasterizer::DrawLine(const array<Point2, 2> & points) {
 	float middleY = pointA.y + addtion * halfScreenPixelHeight;
 
 	for (size_t pixelX = xMin; pixelX <= xMax; pixelX++) {
-		float x = ScreenCoordinateToPixelPoint(pixelX, drawWidth);
+		float x = ScreenPixelPointToCoordinate(pixelX, drawWidth);
 		auto middlePoint = Point2{x, middleY};
 		//取[0,1)作为例子 表示在直线是否在上方
 		bool pointUpLine = (addtion * CalculateLineEquation(middlePoint, pointA, pointB)) >= 0.0f;
 		float y;
+		//取[0,1)作为例子 中点在直线上方则在中点下方画点 反之下方画点
 		if (pointUpLine) {
 			y = middleY - addtion * halfScreenPixelHeight;
 		} else {

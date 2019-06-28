@@ -21,7 +21,7 @@ Application::Application(PixelPointRange range) : buffer(range) {
 	//不允许最大化 不允许拉伸窗口 保证刚好是bitMap的大小
 	DWORD dwstyle = WS_OVERLAPPEDWINDOW ^ WS_THICKFRAME ^ WS_MAXIMIZEBOX;
 
-	RECT r{0, 0, range.width, height};
+	RECT r{0, 0, width, height};
 	AdjustWindowRectEx(&r, dwstyle, 0, 0);
 	int w = r.right - r.left;
 	int h = r.bottom - r.top;
