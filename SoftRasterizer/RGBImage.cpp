@@ -93,7 +93,7 @@ Color RGBImage::BilinearFilter(ImageCoordinate coordinate) const {
 	size_t u0i = static_cast<size_t>(std::min(static_cast<int>(u0), width - 1));
 	size_t u1i = static_cast<size_t>(std::min(static_cast<int>(u1), width - 1));
 	size_t v0i = static_cast<size_t>(std::min(static_cast<int>(v0), height - 1));
-	size_t v1i = static_cast<size_t>(std::min(static_cast<int>(u1), height - 1));
+	size_t v1i = static_cast<size_t>(std::min(static_cast<int>(v1), height - 1));
 	// A B
 	// C D
 	//ËÄ¸öÏñËØ

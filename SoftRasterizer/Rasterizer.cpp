@@ -115,29 +115,30 @@ bool Rasterizer::ViewVolumnCull(const PointTriangle& points) const {
 	constexpr auto bottom = Vector4{0.0f, -1.0f, 0.0f, -1.0f};
 	constexpr auto top = Vector4{0.0f, 1.0f, 0.0f, -1.0f};
 	constexpr auto near = Vector4{0.0f, 0.0f, -1.0f, 0.0f};
-	constexpr auto far = Vector4{0.0f, 0.0f, 1.0f, 1.0f};
-	bool notOutLeft = std::all_of(points.begin(), points.end(), [&](auto point) {
-		return CalculatePlaneDistance(left, point) <= 0.0f;
+	constexpr auto far = Vector4{0.0f, 0.0f, 1.0f, -1.0f};
+	bool outLeft = std::all_of(points.begin(), points.end(), [&](auto point) {
+		return CalculatePlaneDistance(left, point) > 0.0f;
 	});
-	bool notOutRight = std::all_of(points.begin(), points.end(), [&](auto point) {
-		return CalculatePlaneDistance(right, point) <= 0.0f;
+	bool outRight = std::all_of(points.begin(), points.end(), [&](auto point) {
+		return CalculatePlaneDistance(right, point) > 0.0f;
 	});
-	bool notOutBottom = std::all_of(points.begin(), points.end(), [&](auto point) {
-		return CalculatePlaneDistance(bottom, point) <= 0.0f;
+	bool outBottom = std::all_of(points.begin(), points.end(), [&](auto point) {
+		return CalculatePlaneDistance(bottom, point) > 0.0f;
 	});
-	bool notOutTop = std::all_of(points.begin(), points.end(), [&](auto point) {
-		return CalculatePlaneDistance(top, point) <= 0.0f;
+	bool outTop = std::all_of(points.begin(), points.end(), [&](auto point) {
+		return CalculatePlaneDistance(top, point) > 0.0f;
 	});
-	bool notOutNear = std::all_of(points.begin(), points.end(), [&](auto point) {
-		return CalculatePlaneDistance(near, point) <= 0.0f;
+	bool outNear = std::all_of(points.begin(), points.end(), [&](auto point) {
+		return CalculatePlaneDistance(near, point) > 0.0f;
 	});
-	bool notOutFar = std::all_of(points.begin(), points.end(), [&](auto point) {
-		return CalculatePlaneDistance(far, point) <= 0.0f;
+	bool outFar = std::all_of(points.begin(), points.end(), [&](auto point) {
+		return CalculatePlaneDistance(far, point) > 0.0f;
 	});
-	if (notOutLeft && notOutRight && notOutBottom && notOutTop && notOutNear && notOutFar) {
-		return false;
+	//满足任意一种情况可以直接消除
+	if (outLeft || outRight || outBottom || outTop || outNear || outFar) {
+		return true;
 	}
-	return true;
+	return false;
 }
 
 bool Rasterizer::BackCull(const PointTriangle& points) const {
@@ -390,7 +391,7 @@ vector<ScreenLine> Rasterizer::WireframeNearFarPlaneClipAndGetLines(const PointT
 		*/
 		Point4 E = CalculatePlanePoint(nearPlane, A, C);
 		Point4 F = CalculatePlanePoint(nearPlane, A, B);
-		bool needClip = CalculatePlaneDistance(farPlane, A) <= 0.0f;
+		bool needClip = CalculatePlaneDistance(farPlane, A) > 0.0f;
 		if (needClip) {
 			Point4 G = CalculatePlanePoint(farPlane, A, C);
 			Point4 H = CalculatePlanePoint(farPlane, A, B);
@@ -456,7 +457,7 @@ vector<ScreenLine> Rasterizer::WireframeNearFarPlaneClipAndGetLines(const PointT
 			Point2 screenB = ConvertToScreenPoint(B);
 			Point2 screenF = ConvertToScreenPoint(F);
 			Point2 screenE = ConvertToScreenPoint(E);
-			result.reserve(7);
+			result.reserve(6);
 			result.push_back({screenG, screenH});
 			result.push_back({screenH, screenB});
 			result.push_back({screenB, screenF});
