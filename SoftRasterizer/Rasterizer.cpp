@@ -1,13 +1,6 @@
 #include "Rasterizer.h"
 
 /*
-	在清空状态深度储存为2.0f
-	清空屏幕时为黑色
-*/
-constexpr float clearDepth = 2.0f;
-constexpr Color black = {0.0f, 0.0f, 0.0f};
-
-/*
 	使用pair array tuple 导致代码难读
 	这里使用using来消除
 	.cpp文件内需要复制一份
@@ -20,54 +13,69 @@ using GravityCoefficient = array<float, 3>;
 using ScreenTriangle = array<Point2, 3>;
 using ScreenLine = array<Point2, 2>;
 
-Rasterizer::Rasterizer(PixelPointRange range)
-	: range(range),zBuffer(range.GetSize(), {clearDepth, black}) {
-	assertion(range.width >= 2);
-	assertion(range.height >= 2);
+Rasterizer::Rasterizer(unsigned width, unsigned height)
+	: zBuffer(width,height) {
+	Clear();
+}
+
+float Rasterizer::GetAspectRatio() const {
+	return static_cast<float>(zBuffer.GetWidth()) / static_cast<float>(zBuffer.GetHeight());
 }
 
 void Rasterizer::Clear() {
-	for (auto& buffer : zBuffer) {
-		buffer.first = clearDepth;
-		buffer.second = black;
+	/*
+		在清空状态深度储存为2.0f
+		清空屏幕时为黑色
+	*/
+	constexpr float clearDepth = 2.0f;
+	constexpr Color black = {0.0f, 0.0f, 0.0f};
+	for (unsigned y = 0; y < zBuffer.GetHeight(); y++) {
+		for (unsigned x = 0; x < zBuffer.GetWidth(); x++) {
+			zBuffer.SetImagePoint(x, y, {clearDepth, black});
+		}
 	}
 }
 
 RGBImage Rasterizer::GenerateRGBImage() const {
-	RGBImage image(range);
-	size_t width = range.width;
-	size_t height = range.height;
-	for (size_t y = 0; y < height; y++) {
-		for (size_t x = 0; x < width; x++) {
-			int index = ImagePixelPointToIndex({x, y}, range);
-			auto color = zBuffer[index].second;
-			image.SetImagePixel({x, y}, color);
+	unsigned width = zBuffer.GetWidth();
+	unsigned height = zBuffer.GetHeight();
+	RGBImage image(width, height);
+	for (unsigned y = 0; y < height; y++) {
+		for (unsigned x = 0; x < width; x++) {
+			Color color = zBuffer.GetImagePoint(x, y).second;
+			image.SetImagePoint(x, y, color);
 		}
 	}
 	return image;
 }
 
-void Rasterizer::DrawZBuffer(ScreenPixelPoint point, float depth, Color color) {
-	assertion(PixelPointInRange(point, range));
-	assertion(DepthInViewVolumn(depth));
-	size_t index = ScreenPixelPointToIndex(point, range);
-	if (depth < zBuffer[index].first) {
-		zBuffer[index].first = depth;
-		zBuffer[index].second = color;
+void Rasterizer::DrawZBuffer(unsigned x, unsigned y, float depth, Color color) {
+	assertion(depth >= 0.0f && depth <= 1.0f);
+	float zBufferDepth = zBuffer.GetScreenPoint(x, y).first;
+	if (depth < zBufferDepth) {
+		zBuffer.SetScreenPoint(x, y, {depth, color});
 	}
 }
 
-void Rasterizer::DrawWritePixel(ScreenPixelPoint point) {
-	assertion(PixelPointInRange(point, range));
+void Rasterizer::DrawWritePixel(unsigned x, unsigned y) {
 	constexpr float depth = -1.0f;
 	constexpr Color write = {1.0f, 1.0f, 1.0f};
-	size_t index = ScreenPixelPointToIndex(point, range);
-	zBuffer[index].first = depth;
-	zBuffer[index].second = write;
+	zBuffer.SetScreenPoint(x, y, {depth, write});
 }
 
 Point2 Rasterizer::ConvertToScreenPoint(Point4 p) const {
 	return {p.x / p.w, p.y / p.w};
+}
+
+float Rasterizer::ScreenPixelPointToCoordinate(unsigned pixel, unsigned pixelCount) {
+	float coordinate = static_cast<float>(pixel) / static_cast<float>(pixelCount - 1);
+	float normalizeCoordinate = coordinate * 2.0f - 1.0f;
+	return normalizeCoordinate;
+}
+
+int Rasterizer::ScreenCoordinateToPixelPoint(float coordinate, unsigned pixelCount) {
+	float normalizeCoordinate = (coordinate + 1.0f) * 0.5f;
+	return static_cast<int>(round(normalizeCoordinate * static_cast<float>(pixelCount - 1)));
 }
 
 float Rasterizer::CalculatePlaneInterpolationCoefficient(Vector4 plane, Point4 p0, Point4 p1) const {
@@ -86,10 +94,10 @@ float Rasterizer::CalculatePlaneInterpolationCoefficient(Vector4 plane, Point4 p
 
 Vertex Rasterizer::CalculateInterpolationVertex(float t, const Vertex& p0, const Vertex& p1) const {
 	Point4 A = p0.first;
-	Point4 B = p0.first;
+	Point4 B = p1.first;
 	VertexData dataA = p0.second;
 	VertexData dataB = p1.second;
-	Point4 point = A * (1.0f - t) + B * t;
+	Point4 point = A * (1.0f - t) + (B * t);
 	Point2 coordinate = get<0>(dataA) * (1.0f - t) + get<0>(dataB) * t;
 	Vector3 normal = get<1>(dataA) * (1.0f - t) + get<1>(dataB) * t;
 	Color color = get<2>(dataA) * (1.0f - t) + get<2>(dataB) * t;
@@ -262,10 +270,10 @@ vector<VertexTriangle> Rasterizer::TriangleNearPlaneClipAndBackCull(const Vertex
 		float tAFB = CalculatePlaneInterpolationCoefficient(nearPlane, A, B);
 		Point4 E = A * (1.0f - tAEC) + C * (tAEC);
 		Point4 F = A * (1.0f - tAFB) + B * (tAFB);
-		PointTriangle testTriangle{A, E, F};
+		PointTriangle testTriangle{A, F, E};
 		if (!(BackCull(testTriangle) ^ reverse)) {
-			auto vertexF = CalculateInterpolationVertex(tAEC, vertexA, vertexC);
-			auto vertexE = CalculateInterpolationVertex(tAFB, vertexA, vertexB);
+			auto vertexE = CalculateInterpolationVertex(tAEC, vertexA, vertexC);
+			auto vertexF = CalculateInterpolationVertex(tAFB, vertexA, vertexB);
 			result.reserve(1);
 			result.push_back({vertexA, vertexF, vertexE});
 		}
@@ -287,8 +295,8 @@ vector<VertexTriangle> Rasterizer::TriangleNearPlaneClipAndBackCull(const Vertex
 		Point4 F = B * (1.0f - tBFC) + C * (tBFC);
 		PointTriangle testTriangle{A, B, F};
 		if (!(BackCull(testTriangle) ^ reverse)) {
-			auto vertexF = CalculateInterpolationVertex(tAEC, vertexA, vertexC);
-			auto vertexE = CalculateInterpolationVertex(tBFC, vertexB, vertexC);
+			auto vertexE = CalculateInterpolationVertex(tAEC, vertexA, vertexC);
+			auto vertexF = CalculateInterpolationVertex(tBFC, vertexB, vertexC);
 			result.reserve(2);
 			result.push_back({vertexA, vertexB, vertexF});
 			result.push_back({vertexA, vertexF, vertexE});
@@ -305,31 +313,31 @@ vector<VertexTriangle> Rasterizer::TriangleNearPlaneClipAndBackCull(const Vertex
 	return result;
 }
 
-void Rasterizer::TriangleRasterization(const ScreenTriangle& points,
+void Rasterizer::TriangleRasterization(const PointTriangle& points,
 									   const CalculateScreenPoint& useCoefficient) {
-	const int width = range.width;
-	const int height = range.height;
+	const int width = static_cast<int>(zBuffer.GetWidth());
+	const int height = static_cast<int>(zBuffer.GetHeight());
 	//获取三角形中顶点最大最小的x y值
 	//用于计算需要绘制的边框
 	array<float, 3> xValue;
 	array<float, 3> yValue;
 	for (int i = 0; i < 3; i++) {
-		xValue[i] = points[i].x;
-		yValue[i] = points[i].y;
+		xValue[i] = ConvertToScreenPoint(points[i]).x;
+		yValue[i] = ConvertToScreenPoint(points[i]).y;
 	}
 	std::sort(xValue.begin(), xValue.end(), std::less<float>());
 	std::sort(yValue.begin(), yValue.end(), std::less<float>());
+	Point2 A = ConvertToScreenPoint(points[0]);
+	Point2 B = ConvertToScreenPoint(points[1]);
+	Point2 C = ConvertToScreenPoint(points[2]);
+	float fa = CalculateLineEquation(A, B, C);
+	float fb = CalculateLineEquation(B, C, A);
+	float fc = CalculateLineEquation(C, A, B);
 	//确定需要绘制的边界
 	size_t xMax = std::min(ScreenCoordinateToPixelPoint(xValue[2], width), width - 1);
 	size_t xMin = std::max(ScreenCoordinateToPixelPoint(xValue[0], width), 0);
 	size_t yMax = std::min(ScreenCoordinateToPixelPoint(yValue[2], height), height - 1);
 	size_t yMin = std::max(ScreenCoordinateToPixelPoint(yValue[0], height), 0);
-	Point2 A = points[0];
-	Point2 B = points[1];
-	Point2 C = points[2];
-	float fa = CalculateLineEquation(A, B, C);
-	float fb = CalculateLineEquation(B, C, A);
-	float fc = CalculateLineEquation(C, A, B);
 	//循环限定矩形 [xMin,xMax] * [yMin,yMax]
 	for (size_t yIndex = yMin; yIndex <= yMax; yIndex++) {
 		for (size_t xIndex = xMin; xIndex <= xMax; xIndex++) {
@@ -341,14 +349,19 @@ void Rasterizer::TriangleRasterization(const ScreenTriangle& points,
 			float alpha = CalculateLineEquation(screenPoint, B, C) / fa;
 			float beta = CalculateLineEquation(screenPoint, C, A) / fb;
 			float gamma = CalculateLineEquation(screenPoint, A, B) / fc;
-			auto coefficients = GravityCoefficient{alpha, beta, gamma};
-			//判断是否在三角形内部
-			bool inTriangle = std::all_of(coefficients.begin(), coefficients.end(), [](float f) {
-				return f >= 0.0f;
-			});
-			if (inTriangle) {
-				ScreenPixelPoint point{xIndex, yIndex};
-				useCoefficient(point, coefficients);
+			//判断是否未超出远平面
+			float z = alpha * points[0].z + beta * points[1].z + gamma * points[2].z;
+			float w = alpha * points[0].w + beta * points[1].w + gamma * points[2].w;
+			float depth = z / w;
+			if (depth >= 0.0f && depth <= 1.0f) {
+			    //判断是否在三角形内部
+				auto coefficients = GravityCoefficient{alpha, beta, gamma};
+				bool inTriangle = std::all_of(coefficients.begin(), coefficients.end(), [](float f) {
+					return f >= 0.0f;
+				});
+				if (inTriangle) {
+					useCoefficient(xIndex, yIndex, depth, coefficients);
+				}
 			}
 		}
 	}
@@ -622,8 +635,8 @@ bool Rasterizer::LineClip(ScreenLine& points) const {
 void Rasterizer::DrawLine(const ScreenLine& points) {
 	Point2 A = points[0];
 	Point2 B = points[1];
-	size_t width = range.width;
-	size_t height = range.height;
+	size_t width = zBuffer.GetWidth();
+	size_t height = zBuffer.GetHeight();
 	/*
 		这里乘以图片比例主要是因为图片比例会导致k > 1 或者 k < -1的情况
 		中点算法一次只能上升或者下降一格像素 当K > 1时 只能取K == 1 (K<-1 同理)
@@ -697,9 +710,9 @@ void Rasterizer::DrawLine(const ScreenLine& points) {
 		size_t pixelY = ScreenCoordinateToPixelPoint(y, drawHeight);
 		//这里也需要反转绘制
 		if (reverse) {
-			DrawWritePixel({pixelY, pixelX});
+			DrawWritePixel(pixelY, pixelX);
 		} else {
-			DrawWritePixel({pixelX, pixelY});
+			DrawWritePixel(pixelX, pixelY);
 		}
 		//取[0,1)作为例子 中点在直线下方 需要提高中点一个单位
 		if (!pointUpLine) {

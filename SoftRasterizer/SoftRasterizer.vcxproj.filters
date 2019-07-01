@@ -33,7 +33,7 @@
     <ClCompile Include="Assertion.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="Agreement.cpp">
+    <ClCompile Include="Geometry.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>
@@ -53,7 +53,10 @@
     <ClInclude Include="Application.h">
       <Filter>头文件</Filter>
     </ClInclude>
-    <ClInclude Include="Agreement.h">
+    <ClInclude Include="Geometry.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="Texture2D.h">
       <Filter>头文件</Filter>
     </ClInclude>
   </ItemGroup>

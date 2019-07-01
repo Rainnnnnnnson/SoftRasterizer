@@ -38,3 +38,7 @@
 /Agreement-Unit-Test/Debug
 /RGBImage-Unit-Test/Debug
 /Test/Release
+/RGBImage-Unit-Test/Release
+/DrawCubeByOrthogonal/Debug
+/DrawCubeByOrthogonal/Release
+/DrawCubeByPerspective/Release

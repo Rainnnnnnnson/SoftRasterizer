@@ -150,6 +150,8 @@ Matrix4X4 CameraLookTo(Point3 eye, Vector3 direction, Vector3 up);
 Matrix4X4 CameraLookAt(Point3 eye, Point3 target, Vector3 up);
 Matrix4X4 Scale(float x, float y, float z);
 Matrix4X4 Move(Vector3 direction);
+Matrix4X4 Orthogonal(float n, float f, float l, float r, float b, float t);
+Matrix4X4 OrthogonalByAspect(float n, float f, float aspect);
 Matrix4X4 Perspective(float n, float f, float l, float r, float b, float t);
 Matrix4X4 PerspectiveByAspect(float n, float f, float aspect);
 

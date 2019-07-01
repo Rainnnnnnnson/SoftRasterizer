@@ -455,6 +455,19 @@ Matrix4X4 Move(Vector3 direction) {
 	};
 }
 
+Matrix4X4 Orthogonal(float n, float f, float l, float r, float b, float t) {
+	return {
+		(2.0f * n) / (r - l), 0.0f, 0.0f, -(r + l) / (r - l),
+		0.0f, (2.0f * n) / (t - b), 0.0f, -(t + b) / (t - b),
+		0.0f, 0.0f, 1.0f / (f - n), -n / (f - n),
+		0.0f, 0.0f, 0.0f, 1.0f
+	};
+}
+
+Matrix4X4 OrthogonalByAspect(float n, float f, float aspect) {
+	return Orthogonal(n, f, -aspect, aspect, -1.0f, 1.0f);
+}
+
 
 Matrix4X4 Perspective(float n, float f, float l, float r, float b, float t) {
 	return {

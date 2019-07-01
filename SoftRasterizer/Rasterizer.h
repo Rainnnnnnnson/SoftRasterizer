@@ -13,17 +13,18 @@ using std::get;
 
 //默认的时候全部都是0
 struct IndexData {
-	array<size_t, 3> vertex{0, 0, 0};
-	array<size_t, 3> coordinate{0, 0, 0};
-	array<size_t, 3> normal{0, 0, 0};
-	array<size_t, 3> color{0, 0, 0};
-	size_t texture = 0;
+	array<unsigned, 3> point{0, 0, 0};
+	array<unsigned, 3> coordinate{0, 0, 0};
+	array<unsigned, 3> normal{0, 0, 0};
+	array<unsigned, 3> color{0, 0, 0};
+	unsigned texture = 0;
 };
 
 
 class Rasterizer {
 public:
-	Rasterizer(PixelPointRange range);
+	Rasterizer(unsigned width, unsigned height);
+	float GetAspectRatio() const;
 	void Clear();
 	RGBImage GenerateRGBImage() const;
 
@@ -36,7 +37,7 @@ public:
 		参数 const Texture& 对应绑定的纹理 (可以用于扰动 Point2& Vector3& Color& 计算插值时会使用)
 	*/
 	template<typename Texture>
-	using VertexShader = function<Point4(Point3, Point2&, Vector3&, Color&, const Texture&)>;
+	using VertexShader = function<Point4(Point4, Point2&, Vector3&, Color&, const Texture&)>;
 
 	/*
 		返回值 Color 经过计算后像素上的颜色 (在这里做gamma矫正)
@@ -54,7 +55,7 @@ public:
 		index中填写为0
 	*/
 	template<typename Texture>
-	void DrawTriangle(const vector<Point3>& vertexs,
+	void DrawTriangle(const vector<Point3>& points,
 					  const vector<Point2>& coordinates,
 					  const vector<Vector3>& normals,
 					  const vector<Color>& colors,
@@ -71,7 +72,7 @@ public:
 		颜色必定是白色
 	*/
 	template<typename Texture>
-	void DrawWireframe(const vector<Point3>& vertexs,
+	void DrawWireframe(const vector<Point3>& points,
 					   const vector<Point2>& coordinates,
 					   const vector<Vector3>& normals,
 					   const vector<Color>& colors,
@@ -96,8 +97,8 @@ private:
 	/*
 		分别对应两种模式的绘制
 	*/
-	void DrawZBuffer(ScreenPixelPoint point, float depth, Color color);
-	void DrawWritePixel(ScreenPixelPoint point);
+	void DrawZBuffer(unsigned x, unsigned y, float depth, Color color);
+	void DrawWritePixel(unsigned x, unsigned y);
 
 
 	/*
@@ -105,6 +106,10 @@ private:
 		point(x/w, y/w)
 	*/
 	Point2 ConvertToScreenPoint(Point4 p) const;
+
+	float ScreenPixelPointToCoordinate(unsigned pixel, unsigned pixelCount);
+	int ScreenCoordinateToPixelPoint(float coordinate, unsigned pixelCount);
+
 
 	/*
 		p0 p1 为超平面两侧的点
@@ -192,14 +197,15 @@ private:
 	vector<VertexTriangle> TriangleNearPlaneClipAndBackCull(const VertexTriangle& vertexs) const;
 
 
-	using CalculateScreenPoint = function<void(ScreenPixelPoint, const GravityCoefficient&)>;
+	using CalculateScreenPoint = 
+		function<void(unsigned x, unsigned y, float depth, const GravityCoefficient&)>;
 	/*
 		三角形光栅化步骤如下
 		1 计算各像素位置
 		2 根据位置生成 重心系数
-		3 若该位置在三角形内调用function
+		3 若该位置在深度内和三角形内调用function
 	*/
-	void TriangleRasterization(const ScreenTriangle& points,
+	void TriangleRasterization(const PointTriangle& points,
 							   const CalculateScreenPoint& useCoefficient);
 
 	/*
@@ -222,12 +228,11 @@ private:
 	*/
 	void DrawLine(const ScreenLine& points);
 private:
-	PixelPointRange range;
-	vector<pair<float, Color>> zBuffer;
+	Texture2D<pair<float, Color>> zBuffer;
 };
 
 template<typename Texture>
-inline void Rasterizer::DrawTriangle(const vector<Point3>& vertexs,
+inline void Rasterizer::DrawTriangle(const vector<Point3>& points,
 									 const vector<Point2>& coordinates,
 									 const vector<Vector3>& normals,
 									 const vector<Color>& colors,
@@ -236,16 +241,16 @@ inline void Rasterizer::DrawTriangle(const vector<Point3>& vertexs,
 									 const VertexShader<Texture>& vertexShader,
 									 const PixelShader<Texture>& pixelShader) {
 	for (const auto& index : indexs) {
-		assertion(std::all_of(index.vertex.begin(), index.vertex.end(), [&](size_t i) {
-			return i < vertexs.size();
+		assertion(std::all_of(index.point.begin(), index.point.end(), [&](unsigned i) {
+			return i < points.size();
 		}));
-		assertion(std::all_of(index.coordinate.begin(), index.coordinate.end(), [&](size_t i) {
+		assertion(std::all_of(index.coordinate.begin(), index.coordinate.end(), [&](unsigned i) {
 			return i < coordinates.size();
 		}));
-		assertion(std::all_of(index.normal.begin(), index.normal.end(), [&](size_t i) {
+		assertion(std::all_of(index.normal.begin(), index.normal.end(), [&](unsigned i) {
 			return i < normals.size();
 		}));
-		assertion(std::all_of(index.color.begin(), index.color.end(), [&](size_t i) {
+		assertion(std::all_of(index.color.begin(), index.color.end(), [&](unsigned i) {
 			return i < colors.size();
 		}));
 		assertion(index.texture < textures.size());
@@ -254,6 +259,7 @@ inline void Rasterizer::DrawTriangle(const vector<Point3>& vertexs,
 
 		VertexTriangle triangleVertexs;
 		for (int i = 0; i < 3; i++) {
+			triangleVertexs[i].first = points[index.point[i]].ToPoint4();
 			auto vertexData = VertexData{
 				coordinates[index.coordinate[i]],
 				normals[index.normal[i]],
@@ -265,55 +271,46 @@ inline void Rasterizer::DrawTriangle(const vector<Point3>& vertexs,
 		PointTriangle trianglePoints;
 		for (int i = 0; i < 3; i++) {
 			trianglePoints[i] = vertexShader(
-				vertexs[index.vertex[i]],
+				triangleVertexs[i].first,
 				get<0>(triangleVertexs[i].second),
 				get<1>(triangleVertexs[i].second),
 				get<2>(triangleVertexs[i].second),
 				texture
 			);
+			triangleVertexs[i].first = trianglePoints[i];
 		}
 
 		if (ViewVolumnCull(trianglePoints)) {
 			continue;
 		}
 
-		for (int i = 0; i < 3; i++) {
-			triangleVertexs[i].first = trianglePoints[i];
-		}
-
 		auto clipTriangleVertexs = TriangleNearPlaneClipAndBackCull(triangleVertexs);
 		for (const auto& clipTriangleVertex : clipTriangleVertexs) {
 
-			ScreenTriangle screenPoints;
+			array<Point4, 3> clipTrianglePoints;
 			for (int i = 0; i < 3; i++) {
-				screenPoints[i] = ConvertToScreenPoint(clipTriangleVertex[i].first);
+				clipTrianglePoints[i] = clipTriangleVertex[i].first;
 			}
 
-			TriangleRasterization(screenPoints, [&](ScreenPixelPoint screenPoint, const GravityCoefficient& coefficient) {
 
-				array<Point4, 3> clipTrianglePoints;
-				for (int i = 0; i < 3; i++) {
-					clipTrianglePoints[i] = clipTriangleVertex[i].first;
-				}
+			TriangleRasterization(clipTrianglePoints, [&](unsigned x, unsigned y, float depth,
+								  const GravityCoefficient& coefficient) {
+
 
 				auto point = CalculatePointByCoefficient(coefficient, clipTrianglePoints);
-				float depth = point.z / point.w;
-
-				if (DepthInViewVolumn(depth)) {
-					auto triangleData = CalculateVertexData(coefficient, clipTriangleVertex);
-					auto coordinate = get<0>(triangleData);
-					auto normal = get<1>(triangleData);
-					auto color = get<2>(triangleData);
-					auto pixelColor = pixelShader(point, coordinate, normal, color, texture);
-					DrawZBuffer(screenPoint, depth, pixelColor);
-				}
+				auto triangleData = CalculateVertexData(coefficient, clipTriangleVertex);
+				auto coordinate = get<0>(triangleData);
+				auto normal = get<1>(triangleData);
+				auto color = get<2>(triangleData);
+				auto pixelColor = pixelShader(point, coordinate, normal, color, texture);
+				DrawZBuffer(x, y, depth, pixelColor);
 			});
 		}
 	}
 }
 
 template<typename Texture>
-inline void Rasterizer::DrawWireframe(const vector<Point3>& vertexs,
+inline void Rasterizer::DrawWireframe(const vector<Point3>& points,
 									  const vector<Point2>& coordinates,
 									  const vector<Vector3>& normals,
 									  const vector<Color>& colors,
@@ -322,22 +319,23 @@ inline void Rasterizer::DrawWireframe(const vector<Point3>& vertexs,
 									  const VertexShader<Texture>& vertexShader,
 									  const PixelShader<Texture>& pixelShader) {
 	for (const auto& index : indexs) {
-		assertion(std::all_of(index.vertex.begin(), index.vertex.end(), [&](size_t i) {
-			return i < vertexs.size();
+		assertion(std::all_of(index.point.begin(), index.point.end(), [&](unsigned i) {
+			return i < points.size();
 		}));
-		assertion(std::all_of(index.coordinate.begin(), index.coordinate.end(), [&](size_t i) {
+		assertion(std::all_of(index.coordinate.begin(), index.coordinate.end(), [&](unsigned i) {
 			return i < coordinates.size();
 		}));
-		assertion(std::all_of(index.normal.begin(), index.normal.end(), [&](size_t i) {
+		assertion(std::all_of(index.normal.begin(), index.normal.end(), [&](unsigned i) {
 			return i < normals.size();
 		}));
-		assertion(std::all_of(index.color.begin(), index.color.end(), [&](size_t i) {
+		assertion(std::all_of(index.color.begin(), index.color.end(), [&](unsigned i) {
 			return i < colors.size();
 		}));
 		assertion(index.texture < textures.size());
 
 		VertexTriangle triangleVertexs;
 		for (int i = 0; i < 3; i++) {
+			triangleVertexs[i].first = points[index.point[i]].ToPoint4();
 			auto vertexData = VertexData{
 				coordinates[index.coordinate[i]],
 				normals[index.normal[i]],
@@ -349,7 +347,7 @@ inline void Rasterizer::DrawWireframe(const vector<Point3>& vertexs,
 		PointTriangle trianglePoints;
 		for (int i = 0; i < 3; i++) {
 			trianglePoints[i] = vertexShader(
-				vertexs[index.vertex[i]],
+				triangleVertexs[i].first,
 				get<0>(triangleVertexs[i].second),
 				get<1>(triangleVertexs[i].second),
 				get<2>(triangleVertexs[i].second),

@@ -6,7 +6,7 @@
 
 class Application {
 public:
-	Application(PixelPointRange range);
+	Application(unsigned width, unsigned height);
 	~Application();
 	RGBImage GetImage(const wchar_t* fileName) const;
 	bool Continue();

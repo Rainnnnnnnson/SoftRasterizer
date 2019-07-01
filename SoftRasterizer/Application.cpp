@@ -2,9 +2,7 @@
 #include "Assertion.h"
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
-Application::Application(PixelPointRange range) : buffer(range) {
-	int width = static_cast<int>(range.width);
-	int height = static_cast<int>(range.height);
+Application::Application(unsigned width, unsigned height) : buffer(width, height) {
 	//用这个来获取句柄
 	hInstance = GetModuleHandle(NULL);
 
@@ -21,7 +19,7 @@ Application::Application(PixelPointRange range) : buffer(range) {
 	//不允许最大化 不允许拉伸窗口 保证刚好是bitMap的大小
 	DWORD dwstyle = WS_OVERLAPPEDWINDOW ^ WS_THICKFRAME ^ WS_MAXIMIZEBOX;
 
-	RECT r{0, 0, width, height};
+	RECT r{0, 0, static_cast<int>(width), static_cast<int>(height)};
 	AdjustWindowRectEx(&r, dwstyle, 0, 0);
 	int w = r.right - r.left;
 	int h = r.bottom - r.top;
@@ -59,7 +57,7 @@ RGBImage Application::GetImage(const wchar_t* fileName) const {
 		for (size_t x = 0; x < width; x++) {
 			Gdiplus::Color color;
 			bitMap->GetPixel(x, y, &color);
-			image.SetImagePixel({x, y}, RGBColor{color.GetR(), color.GetG(), color.GetB()});
+			image.SetImagePoint(x, y, RGBColor{color.GetR(), color.GetG(), color.GetB()});
 		}
 	}
 	return image;
@@ -83,7 +81,7 @@ bool Application::Continue() {
 			bitmap.LockBits(&rect, 0, PixelFormat24bppRGB, &bitmapData);
 			for (size_t y = 0; y < height; y++) {
 				for (size_t x = 0; x < width; x++) {
-					RGBColor rgb = buffer.GetImagePixel({x, y});
+					RGBColor rgb = buffer.GetImagePoint(x, y);
 					auto p = reinterpret_cast<unsigned char*>(bitmapData.Scan0);
 					int index = y * width + x;
 					int pixelIndex = index * 3;
