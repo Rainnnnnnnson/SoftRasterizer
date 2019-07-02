@@ -36,6 +36,12 @@
     <ClCompile Include="Geometry.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
+    <ClCompile Include="Shadow.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="RasterizationAlgorithm.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Math.h">
@@ -57,6 +63,12 @@
       <Filter>头文件</Filter>
     </ClInclude>
     <ClInclude Include="Texture2D.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="Shadow.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="RasterizationAlgorithm.h">
       <Filter>头文件</Filter>
     </ClInclude>
   </ItemGroup>

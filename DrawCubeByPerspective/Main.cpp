@@ -21,7 +21,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance,
 	    {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f, 1.0f}, {1.0f, 1.0f, 1.0f}, {1.0f, 0.0f, 1.0f}
 	};
 	vector<Texture> textures{{}};
-	vector<IndexData> indexs;
+	vector<DataIndex> indexs;
 	indexs.reserve(12);
 	array<unsigned, 3>zero{0, 0, 0};
 	int cubeFace = 6;

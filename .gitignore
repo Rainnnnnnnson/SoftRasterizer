@@ -42,3 +42,6 @@
 /DrawCubeByOrthogonal/Debug
 /DrawCubeByOrthogonal/Release
 /DrawCubeByPerspective/Release
+/DrawSphereByWireFrame/Debug
+/DrawSphereByWireFrame/Release
+/Unit-Test-Geometry/Debug

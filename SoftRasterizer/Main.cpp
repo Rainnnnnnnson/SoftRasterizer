@@ -14,7 +14,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance,
 	vector<Vector3> normals{{}};
 	vector<Color> colors{{}};
 	vector<Texture> textures{std::move(image)};
-	vector<IndexData> indexs{{{0, 1, 2}, {0, 1, 2}}, {{0, 2, 3}, {0, 2, 3}}};
+	vector<DataIndex> indexs{{{0, 1, 2}, {0, 1, 2}}, {{0, 2, 3}, {0, 2, 3}}};
 	auto vertexShader = [](Point4 point, Point2&, Vector3&, Color&, const Texture&) {
 		return point;
 	};

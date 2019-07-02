@@ -6,8 +6,8 @@ using std::vector;
 using std::array;
 
 struct GeometryIndex {
-	array<size_t, 3> point;
-	array<size_t, 3> normal;
+	array<unsigned, 3> point;
+	array<unsigned, 3> normal;
 };
 
 struct GeometryDate {
@@ -39,4 +39,4 @@ GeometryDate GenerateCube();
 	longitudePointCount 球经度上的点的个数 (必须大于3)
 	latitudePointCount  球纬度上的点的个数 (必须大于1)
 */
-GeometryDate GenerateSphere(int longitudePointCount, int latitudePointCount);
+GeometryDate GenerateSphere(unsigned longitudePointCount, unsigned latitudePointCount);

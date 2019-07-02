@@ -1,9 +1,10 @@
 #pragma once
-#include<vector>
-#include<array>
-#include<functional>
-#include"Assertion.h"
-#include"RGBImage.h"
+#include <vector>
+#include <array>
+#include <functional>
+#include "Assertion.h"
+#include "RGBImage.h"
+#include "RasterizationAlgorithm.h"
 using std::function;
 using std::vector;
 using std::array;
@@ -12,7 +13,7 @@ using std::tuple;
 using std::get;
 
 //默认的时候全部都是0
-struct IndexData {
+struct DataIndex {
 	array<unsigned, 3> point{0, 0, 0};
 	array<unsigned, 3> coordinate{0, 0, 0};
 	array<unsigned, 3> normal{0, 0, 0};
@@ -34,7 +35,7 @@ public:
 		参数 Point2&  传入的纹理坐标的备份 
 		参数 Vector3& 传入的法线的备份 
 		参数 Color&   传入的颜色的备份 (修改此颜色用于实现Gouraud Shading)
-		参数 const Texture& 对应绑定的纹理 (可以用于扰动 Point2& Vector3& Color& 计算插值时会使用)
+		参数 const Texture& 对应绑定的纹理 (也可以是其他数据)
 	*/
 	template<typename Texture>
 	using VertexShader = function<Point4(Point4, Point2&, Vector3&, Color&, const Texture&)>;
@@ -60,7 +61,7 @@ public:
 					  const vector<Vector3>& normals,
 					  const vector<Color>& colors,
 					  const vector<Texture>& textures,
-					  const vector<IndexData>& indexs,
+					  const vector<DataIndex>& indexs,
 					  const VertexShader<Texture>& vertexShader,
 					  const PixelShader<Texture>& pixelShader);
 
@@ -77,7 +78,7 @@ public:
 					   const vector<Vector3>& normals,
 					   const vector<Color>& colors,
 					   const vector<Texture>& textures,
-					   const vector<IndexData>& indexs,
+					   const vector<DataIndex>& indexs,
 					   const VertexShader<Texture>& vertexShader,
 					   const PixelShader<Texture>& pixelShader);
 private:
@@ -89,9 +90,6 @@ private:
 	using VertexData = tuple<Point2, Vector3, Color>;
 	using Vertex = pair<Point4, VertexData>;
 	using VertexTriangle = array<Vertex, 3>;
-	using PointTriangle = array<Point4, 3>;
-	using GravityCoefficient = array<float, 3>;
-	using ScreenTriangle = array<Point2, 3>;
 	using ScreenLine = array<Point2, 2>;
 
 	/*
@@ -100,34 +98,11 @@ private:
 	void DrawZBuffer(unsigned x, unsigned y, float depth, Color color);
 	void DrawWritePixel(unsigned x, unsigned y);
 
-
 	/*
-		将齐次顶点转化成屏幕上的点
-		point(x/w, y/w)
-	*/
-	Point2 ConvertToScreenPoint(Point4 p) const;
-
-	float ScreenPixelPointToCoordinate(unsigned pixel, unsigned pixelCount);
-	int ScreenCoordinateToPixelPoint(float coordinate, unsigned pixelCount);
-
-
-	/*
-		p0 p1 为超平面两侧的点
-		返回平面上的线性插值系数t
-		满足式子 p = (1 - t) * p0 + t * p1;
-
-		向量plane(A,B,C,D)代表平面
-		表达式  Ax + By + Cz + Dw = 0
-
-		左平面  -x           + lw = 0     plane(-1,  0,  0, -1)
-		右平面   x           - rw = 0     plane( 1,  0,  0, -1)
-		下平面       -y      + bw = 0     plane( 0, -1,  0, -1)
-		上平面        y      - tw = 0     plane( 0,  1,  0, -1)
-		近平面            -z + nw = 0     plane( 0,  0, -1,  0)
-		远平面             z - fw = 0     plane( 0,  0,  1, -1)
-	*/
-	float CalculatePlaneInterpolationCoefficient(Vector4 plane, Point4 p0, Point4 p1) const;
-
+	通过两个点直接计算出平面上的点
+	p0 和 p1 需要在平面两侧
+*/
+	Point4 CalculatePlanePoint(Vector4 plane, Point4 p0, Point4 p1) const;
 
 	/*
 		世界空间直接用线性插值计算
@@ -135,49 +110,6 @@ private:
 		满足 p = (1 - t) * p0 + t * p1;
 	*/
 	Vertex CalculateInterpolationVertex(float t, const Vertex& p0, const Vertex& p1) const;
-
-	/*
-		通过两个点直接计算出平面上的点
-		p0 和 p1 需要在平面两侧
-	*/
-	Point4 CalculatePlanePoint(Vector4 plane, Point4 p0, Point4 p1) const;
-
-	/*
-		带入上面6个平面的向量
-		计算顶点到平面上的距离
-		这里的距离仅仅判断在平面的哪个方位
-		distance > 0   point在剪裁空间外
-		distance = 0   point在超平面上
-		distance < 0   point在剪裁空间方向
-	*/
-	float CalculatePlaneDistance(Vector4 plane, Point4 point) const;
-
-	/*
-		根据梯度方向返回在直线上方还是下方
-		带入直线方程式得到的数值
-		p0 p1 为直线端点
-		p为需要判断的顶点
-	*/
-	float CalculateLineEquation(Point2 p, Point2 p0, Point2 p1) const;
-
-	/*
-		所有顶点都在剪裁空间外面的三角形将直接被剔除
-		返回true则代表消除
-	*/
-	bool ViewVolumnCull(const PointTriangle& points) const;
-
-	/*
-		逆时针消除 根据传入顶点的顺序
-		返回true则代表消除
-	*/
-	bool BackCull(const PointTriangle& points) const;
-
-	/*
-		使用重心系数计算顶点
-		这里直接使用线性来计算
-	*/
-	Point4 CalculatePointByCoefficient(const GravityCoefficient& coefficients,
-									   const PointTriangle& points) const;
 
 	/*
 		使用重心系数计算顶点数据
@@ -195,18 +127,6 @@ private:
 		4 加入容器返回
 	*/
 	vector<VertexTriangle> TriangleNearPlaneClipAndBackCull(const VertexTriangle& vertexs) const;
-
-
-	using CalculateScreenPoint = 
-		function<void(unsigned x, unsigned y, float depth, const GravityCoefficient&)>;
-	/*
-		三角形光栅化步骤如下
-		1 计算各像素位置
-		2 根据位置生成 重心系数
-		3 若该位置在深度内和三角形内调用function
-	*/
-	void TriangleRasterization(const PointTriangle& points,
-							   const CalculateScreenPoint& useCoefficient);
 
 	/*
 		步骤如下
@@ -237,7 +157,7 @@ inline void Rasterizer::DrawTriangle(const vector<Point3>& points,
 									 const vector<Vector3>& normals,
 									 const vector<Color>& colors,
 									 const vector<Texture>& textures,
-									 const vector<IndexData>& indexs,
+									 const vector<DataIndex>& indexs,
 									 const VertexShader<Texture>& vertexShader,
 									 const PixelShader<Texture>& pixelShader) {
 	for (const auto& index : indexs) {
@@ -293,17 +213,18 @@ inline void Rasterizer::DrawTriangle(const vector<Point3>& points,
 			}
 
 
-			TriangleRasterization(clipTrianglePoints, [&](unsigned x, unsigned y, float depth,
+			TriangleRasterization(zBuffer.GetWidth(), zBuffer.GetHeight(),
+								  clipTrianglePoints, [&](unsigned x, unsigned y, float depth,
 								  const GravityCoefficient& coefficient) {
-
-
-				auto point = CalculatePointByCoefficient(coefficient, clipTrianglePoints);
-				auto triangleData = CalculateVertexData(coefficient, clipTriangleVertex);
-				auto coordinate = get<0>(triangleData);
-				auto normal = get<1>(triangleData);
-				auto color = get<2>(triangleData);
-				auto pixelColor = pixelShader(point, coordinate, normal, color, texture);
-				DrawZBuffer(x, y, depth, pixelColor);
+				if (depth < zBuffer.GetScreenPoint(x, y).first) {
+					auto point = CalculatePointByCoefficient(coefficient, clipTrianglePoints);
+					auto triangleData = CalculateVertexData(coefficient, clipTriangleVertex);
+					auto coordinate = get<0>(triangleData);
+					auto normal = get<1>(triangleData);
+					auto color = get<2>(triangleData);
+					auto pixelColor = pixelShader(point, coordinate, normal, color, texture);
+					DrawZBuffer(x, y, depth, pixelColor);
+				}
 			});
 		}
 	}
@@ -315,7 +236,7 @@ inline void Rasterizer::DrawWireframe(const vector<Point3>& points,
 									  const vector<Vector3>& normals,
 									  const vector<Color>& colors,
 									  const vector<Texture>& textures,
-									  const vector<IndexData>& indexs,
+									  const vector<DataIndex>& indexs,
 									  const VertexShader<Texture>& vertexShader,
 									  const PixelShader<Texture>& pixelShader) {
 	for (const auto& index : indexs) {
