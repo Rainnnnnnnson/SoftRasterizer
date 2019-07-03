@@ -45,3 +45,6 @@
 /DrawSphereByWireFrame/Debug
 /DrawSphereByWireFrame/Release
 /Unit-Test-Geometry/Debug
+/DrawSphereByGouraudShading/Release
+/DrawSphereByGouraudShading/Debug
+/DrawSphereByPhoneShading/Release
