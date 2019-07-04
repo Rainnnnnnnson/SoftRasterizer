@@ -212,7 +212,6 @@ inline void Rasterizer::DrawTriangle(const vector<Point3>& points,
 				clipTrianglePoints[i] = clipTriangleVertex[i].first;
 			}
 
-
 			TriangleRasterization(zBuffer.GetWidth(), zBuffer.GetHeight(),
 								  clipTrianglePoints, [&](unsigned x, unsigned y, float depth,
 								  const GravityCoefficient& coefficient) {

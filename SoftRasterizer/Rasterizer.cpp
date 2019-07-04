@@ -50,6 +50,7 @@ RGBImage Rasterizer::GenerateRGBImage() const {
 }
 
 void Rasterizer::DrawZBuffer(unsigned x, unsigned y, float depth, Color color) {
+	assertion(x < zBuffer.GetWidth() && y < zBuffer.GetHeight());
 	assertion(depth >= 0.0f && depth <= 1.0f);
 	float zBufferDepth = zBuffer.GetScreenPoint(x, y).first;
 	if (depth < zBufferDepth) {
@@ -319,9 +320,10 @@ vector<ScreenLine> Rasterizer::WireframeNearFarPlaneClipAndGetLines(const PointT
 			result.reserve(5);
 			result.push_back({screenA, screenB});
 			result.push_back({screenB, screenF});
-			result.push_back({screenF, screenA});
 			result.push_back({screenF, screenE});
 			result.push_back({screenE, screenA});
+
+			result.push_back({screenF, screenA});
 		} else if(case2) {
 			Point4 G = CalculatePlanePoint(farPlane, A, C);
 			Point4 H = CalculatePlanePoint(farPlane, A, B);

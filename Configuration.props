@@ -6,7 +6,7 @@
   <ItemDefinitionGroup>
     <Link>
       <AdditionalLibraryDirectories>$(SolutionDir)SoftRasterizer\$(IntDir)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>RasterizationAlgorithm.obj;Geometry.obj;Assertion.obj;RGBImage.obj;Rasterizer.obj;Math.obj;Application.obj;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>Shadow.obj;RasterizationAlgorithm.obj;Geometry.obj;Assertion.obj;RGBImage.obj;Rasterizer.obj;Math.obj;Application.obj;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <ClCompile>
       <LanguageStandard>stdcpp17</LanguageStandard>

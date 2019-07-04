@@ -38,6 +38,11 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "DrawSphereByGouraudShading"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "DrawSphereByPhoneShading", "DrawSphereByPhoneShading\DrawSphereByPhoneShading.vcxproj", "{A4835F45-E80F-40CD-A62A-1AADC692A792}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ShadowMap", "ShadowMap\ShadowMap.vcxproj", "{29C73E7D-E72E-4F5B-AB58-CB6ACF0B9696}"
+	ProjectSection(ProjectDependencies) = postProject
+		{7A49E6E1-2882-4FBD-896E-BAFD5B0DFCF3} = {7A49E6E1-2882-4FBD-896E-BAFD5B0DFCF3}
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -126,6 +131,14 @@ Global
 		{A4835F45-E80F-40CD-A62A-1AADC692A792}.Release|x64.Build.0 = Release|x64
 		{A4835F45-E80F-40CD-A62A-1AADC692A792}.Release|x86.ActiveCfg = Release|Win32
 		{A4835F45-E80F-40CD-A62A-1AADC692A792}.Release|x86.Build.0 = Release|Win32
+		{29C73E7D-E72E-4F5B-AB58-CB6ACF0B9696}.Debug|x64.ActiveCfg = Debug|x64
+		{29C73E7D-E72E-4F5B-AB58-CB6ACF0B9696}.Debug|x64.Build.0 = Debug|x64
+		{29C73E7D-E72E-4F5B-AB58-CB6ACF0B9696}.Debug|x86.ActiveCfg = Debug|Win32
+		{29C73E7D-E72E-4F5B-AB58-CB6ACF0B9696}.Debug|x86.Build.0 = Debug|Win32
+		{29C73E7D-E72E-4F5B-AB58-CB6ACF0B9696}.Release|x64.ActiveCfg = Release|x64
+		{29C73E7D-E72E-4F5B-AB58-CB6ACF0B9696}.Release|x64.Build.0 = Release|x64
+		{29C73E7D-E72E-4F5B-AB58-CB6ACF0B9696}.Release|x86.ActiveCfg = Release|Win32
+		{29C73E7D-E72E-4F5B-AB58-CB6ACF0B9696}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

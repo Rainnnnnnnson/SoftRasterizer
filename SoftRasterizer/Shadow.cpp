@@ -1,15 +1,39 @@
 #include "Shadow.h"
 #include "RasterizationAlgorithm.h"
-using std::pair;
 
 //从Rasterizer 里面Copy过来改了一点点
 vector<PointTriangle> NearPlanClipAndBackCull(const PointTriangle& points);
 
-Texture2D<float> GenerateShadowMap(unsigned width, unsigned height, 
-								   const vector<Point3>& points, 
-								   const vector<array<unsigned, 3>> & indexs,
-								   function<Point4(Point4)> transfrom) {
-	auto result = Texture2D<float>{width, height};
+ShadowBuilder::ShadowBuilder(unsigned width, unsigned height) : depths(width, height) {
+	Clear();
+}
+
+float ShadowBuilder::GetAspectRatio() const {
+	return static_cast<float>(depths.GetWidth()) / static_cast<float>(depths.GetHeight());
+}
+
+void ShadowBuilder::Clear() {
+	for (unsigned y = 0; y < depths.GetHeight(); y++) {
+		for (unsigned x = 0; x < depths.GetWidth(); x++) {
+			depths.SetImagePoint(x, y, 1.0f);
+		}
+	}
+}
+
+ShadowTexture ShadowBuilder::Generate() const {
+	ShadowTexture result(depths.GetWidth(), depths.GetHeight());
+	for (unsigned y = 0; y < depths.GetHeight(); y++) {
+		for (unsigned x = 0; x < depths.GetWidth(); x++) {
+			float depth = depths.GetImagePoint(x, y);
+			result.SetImagePoint(x, y, depth);
+		}
+	}
+	return result;
+}
+
+void ShadowBuilder::DrawDepth(const vector<Point3>& points,
+							  const vector<array<unsigned, 3>> & indexs,
+							  function<Point4(Point4)> transfrom) {
 	for (const auto& index : indexs) {
 		assertion(std::all_of(index.begin(), index.end(), [&](unsigned i) {
 			return i < points.size();
@@ -23,21 +47,20 @@ Texture2D<float> GenerateShadowMap(unsigned width, unsigned height,
 		}
 		auto clipTrianglePoints = NearPlanClipAndBackCull(trianglePoints);
 		for (auto clipTrianglePoint : clipTrianglePoints) {
-			TriangleRasterization(width, height, clipTrianglePoint,
+			TriangleRasterization(depths.GetWidth(), depths.GetHeight(), clipTrianglePoint,
 								  [&](unsigned x, unsigned y, float depth, const GravityCoefficient&) {
-				if (depth < result.GetScreenPoint(x, y)) {
-					result.SetScreenPoint(x, y, depth);
+				if (depth < depths.GetScreenPoint(x, y)) {
+					depths.SetScreenPoint(x, y, depth);
 				}
 			});
 		}
 	}
-	return result;
 }
 
 vector<PointTriangle> NearPlanClipAndBackCull(const PointTriangle& points) {
 	constexpr auto nearPlane = Vector4{0.0f, 0.0f, -1.0f, 0.0f};
 
-	array<pair<Point4, float>, 3> pointDistances;
+	array<std::pair<Point4, float>, 3> pointDistances;
 	for (int i = 0; i < 3; i++) {
 		pointDistances[i].first = points[i];
 		pointDistances[i].second = CalculatePlaneDistance(nearPlane, points[i]);
@@ -124,4 +147,20 @@ vector<PointTriangle> NearPlanClipAndBackCull(const PointTriangle& points) {
 		//keepPointCount == 0 不需要绘制
 	}
 	return result;
+}
+
+bool Illuminated(const ShadowTexture& shadow, Point4 point4) {
+	Point3 point = point4.ToPoint3();
+	//不在剪裁空间内直接不可见
+	if (point.x < -1.0f || point.x > 1.0f ||
+		point.y < -1.0f || point.y > 1.0f ||
+		point.z < 0.0f || point.z > 1.0f) {
+		return false;
+	}
+	unsigned x = static_cast<unsigned>(ScreenCoordinateToPixelPoint(point.x, shadow.GetWidth()));
+	unsigned y = static_cast<unsigned>(ScreenCoordinateToPixelPoint(point.y, shadow.GetHeight()));
+	if (point.z <= shadow.GetScreenPoint(x, y)) {
+		return true;
+	}
+	return false;
 }

@@ -89,7 +89,13 @@ bool BackCull(const PointTriangle& points) {
 }
 
 Point4 CalculatePointByCoefficient(const GravityCoefficient& coefficients, const PointTriangle& points) {
-	return points[0] * coefficients[0] + points[1] * coefficients[1] + points[2] * coefficients[2];
+	Point4 point = points[0] * (coefficients[0] / points[0].w)
+		+ points[1] * (coefficients[1] / points[1].w)
+		+ points[2] * (coefficients[2] / points[2].w);
+	float screenOne = coefficients[0] / points[0].w
+		+ coefficients[1] / points[1].w
+		+ coefficients[2] / points[2].w;
+	return {point.x / screenOne, point.y / screenOne, point.z / screenOne, point.w / screenOne};
 }
 
 void TriangleRasterization(unsigned w, unsigned h, 

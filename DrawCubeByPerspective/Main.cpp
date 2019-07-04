@@ -32,8 +32,8 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance,
 		indexs.push_back({cubeData.index[rightDown].point, zero, zero, cubeData.index[rightDown].point});
 	}
 
-	auto matrix = PerspectiveByAspect(1.0f, 2.0f, rasterizer.GetAspectRatio())
-		* Move({0.0f, 0.0f, 1.5f}) * Scale(0.5f, 0.5f, 0.5f);
+	auto matrix = PerspectiveByAspect(1.0f, 4.0f, rasterizer.GetAspectRatio())
+		* Move({0.0f, 0.0f, 1.6f}) * Scale(0.5f, 0.5f, 0.5f);
 	float x = 0.7f;
 	float y = 0.5f;
 	while (application.Continue()) {
@@ -49,8 +49,6 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance,
 		};
 		rasterizer.DrawTriangle<Texture>(points, coordinates, normals, colors, textures, indexs,
 										 vertexShader, pixelShader);
-		rasterizer.DrawWireframe<Texture>(points, coordinates, normals, colors, textures, indexs,
-										  vertexShader, pixelShader);
 		RGBImage image = rasterizer.GenerateRGBImage();
 		application.CopyInBuffer(std::move(image));
 	}

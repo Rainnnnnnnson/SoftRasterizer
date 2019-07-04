@@ -7,7 +7,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance,
 	unsigned height = 512;
 	Application application(width,height);
 	Rasterizer rasterizer(width, height);
-	RGBImage image = application.GetImage(L"../level0.PNG");
+	RGBImage image = application.GetImage(L"../Grid.JPG");
 	using Texture = RGBImage;
 	vector<Point3> points{{-1.0f, -1.0f, 0.0f}, {-1.0f, 1.0f, 0.0f}, {1.0f, 1.0f, 0.0f}, {1.0f, -1.0f, 0.0f}};
 	vector<Point2> coordinates{{0.0f, 1.0f}, {0.0f, 0.0f}, {1.0f, 0.0f}, {1.0f, 1.0f}};
@@ -25,8 +25,6 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance,
 		rasterizer.Clear();
 		rasterizer.DrawTriangle<Texture>(points, coordinates, normals, colors, textures, indexs,
 										 vertexShader, pixelShader);
-		rasterizer.DrawWireframe<Texture>(points, coordinates, normals, colors, textures, indexs,
-										  vertexShader, pixelShader);
 		RGBImage image = rasterizer.GenerateRGBImage();
 		application.CopyInBuffer(std::move(image));
 	}

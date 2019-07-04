@@ -49,7 +49,7 @@ Application::~Application() {
 
 RGBImage Application::GetImage(const wchar_t* fileName) const {
 	auto bitMap = Gdiplus::Bitmap::FromFile(fileName);
-	assertion(bitMap != nullptr);
+	assertion(bitMap->GetWidth() != 0 && bitMap->GetHeight() != 0);
 	size_t width = static_cast<size_t>(bitMap->GetWidth());
 	size_t height = static_cast<size_t>(bitMap->GetHeight());
 	RGBImage image({width, height});
