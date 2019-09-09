@@ -7,7 +7,8 @@ template<typename Element>
 class Texture2D {
 public:
 	Texture2D(unsigned width, unsigned height)
-		: width(width), height(height), elements(width* height, Element{}) {
+		: width(width), height(height), 
+		elements(static_cast<size_t>(width)* height, Element{}) {
 		assertion(width > 0);
 		assertion(height > 0);
 	}

@@ -497,8 +497,8 @@ bool Rasterizer::LineClip(ScreenLine& points) const {
 void Rasterizer::DrawLine(const ScreenLine& points) {
 	Point2 A = points[0];
 	Point2 B = points[1];
-	size_t width = zBuffer.GetWidth();
-	size_t height = zBuffer.GetHeight();
+	unsigned width = zBuffer.GetWidth();
+	unsigned height = zBuffer.GetHeight();
 	/*
 		这里乘以图片比例主要是因为图片比例会导致k > 1 或者 k < -1的情况
 		中点算法一次只能上升或者下降一格像素 当K > 1时 只能取K == 1 (K<-1 同理)
@@ -510,8 +510,8 @@ void Rasterizer::DrawLine(const ScreenLine& points) {
 		k < -1 || k >= 1 的情况 可以看作 y = x 轴对称
 		所以只需要反转顶点和图像来绘制即可
 	*/
-	size_t drawWidth = width;
-	size_t drawHeight = height;
+	unsigned drawWidth = width;
+	unsigned drawHeight = height;
 	bool reverse;
 	if (k >= -1.0f && k < 1.0f) {
 		reverse = false;
@@ -536,10 +536,10 @@ void Rasterizer::DrawLine(const ScreenLine& points) {
 		可以省很多情况 增加代码可读性
 		而且两种情况画出的线条最多差距1像素
 	*/
-	size_t xMin = ScreenCoordinateToPixelPoint(A.x, drawWidth);
-	size_t xMax = ScreenCoordinateToPixelPoint(B.x, drawWidth);
-	size_t yMin = ScreenCoordinateToPixelPoint(A.y, drawHeight);
-	size_t yMax = ScreenCoordinateToPixelPoint(B.y, drawHeight);
+	unsigned xMin = ScreenCoordinateToPixelPoint(A.x, drawWidth);
+	unsigned xMax = ScreenCoordinateToPixelPoint(B.x, drawWidth);
+	unsigned yMin = ScreenCoordinateToPixelPoint(A.y, drawHeight);
+	unsigned yMax = ScreenCoordinateToPixelPoint(B.y, drawHeight);
 	Point2 pointA{ScreenPixelPointToCoordinate(xMin, drawWidth), ScreenPixelPointToCoordinate(yMin, drawHeight)};
 	Point2 pointB{ScreenPixelPointToCoordinate(xMax, drawWidth), ScreenPixelPointToCoordinate(yMax, drawHeight)};
 
@@ -557,7 +557,7 @@ void Rasterizer::DrawLine(const ScreenLine& points) {
 
 	float middleY = pointA.y + addtion * halfScreenPixelHeight;
 
-	for (size_t pixelX = xMin; pixelX <= xMax; pixelX++) {
+	for (unsigned pixelX = xMin; pixelX <= xMax; pixelX++) {
 		float x = ScreenPixelPointToCoordinate(pixelX, drawWidth);
 		auto middlePoint = Point2{x, middleY};
 		//取[0,1)作为例子 表示在直线是否在上方
@@ -569,7 +569,7 @@ void Rasterizer::DrawLine(const ScreenLine& points) {
 		} else {
 			y = middleY + addtion * halfScreenPixelHeight;
 		}
-		size_t pixelY = ScreenCoordinateToPixelPoint(y, drawHeight);
+		unsigned pixelY = ScreenCoordinateToPixelPoint(y, drawHeight);
 		//这里也需要反转绘制
 		if (reverse) {
 			DrawWritePixel(pixelY, pixelX);

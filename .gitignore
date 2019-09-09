@@ -50,3 +50,7 @@
 /DrawSphereByPhoneShading/Release
 /ShadowMap/Debug
 /ShadowMap/Release
+/SoftRasterizer/x64/Release
+/x64/Release
+/ShadowMap/x64/Release
+/DrawCubeByOrthogonal/x64/Release
